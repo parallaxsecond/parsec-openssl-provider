@@ -1,0 +1,15 @@
+[package]
+name = "parsec-openssl-provider"
+version = "0.1.0"
+authors = ["Parsec Project Contributors"]
+description = "A parsec openssl provider static library"
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["security", "service"]
+categories = ["cryptography", "hardware-support"]
+edition = "2021"
+
+[dependencies]
+parsec-openssl2 = { path = "../parsec-openssl2" }
+openssl-errors = "0.2.0"
+log = "0.4"
