@@ -1,0 +1,12 @@
+[package]
+name = "parsec-openssl2"
+version = "0.1.0"
+license = "Apache-2.0"
+authors = ["Parsec Project Contributors"]
+edition = "2021"
+
+[dependencies]
+parsec-openssl-sys2 = { path = "../parsec-openssl-sys2" }
+openssl = "0.10.63"
+openssl2 = { git = "https://github.com/Azure/iot-identity-service.git", rev = "91e0588" }
+openssl-sys = "0.9.99"
