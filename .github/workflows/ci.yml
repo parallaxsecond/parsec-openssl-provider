@@ -1,0 +1,48 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      trigger_docker:
+        description: "'parsec-openssl-provider-test' if docker build should be triggered"
+        required: false
+        default: ""
+  push:
+
+env:
+  TEST_DOCKER_IMAGE: ${{ github.event.inputs.trigger_docker || 'ghcr.io/parallaxsecond/parsec-openssl-provider-test' }}
+
+jobs:
+  build-and-export-test-docker:
+    runs-on: ubuntu-latest
+    # For running this job  we need to manually trigger the CI and set the variable
+    if: ${{ github.event.inputs.trigger_docker == 'parsec-openssl-provider-test' }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build the docker container
+      run: pushd tests/docker_image && docker build -t parsec-openssl-provider-test -f parsec-openssl-provider-test.Dockerfile . && popd
+    - name: Export the docker container
+      run: docker save parsec-openssl-provider-test > /tmp/parsec-openssl-provider-test.tar
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: parsec-openssl-provider-test
+        path: /tmp/parsec-openssl-provider-test.tar
+
+  build-and-test:
+    name: Build Parsec OpenSSL Provider and run tests 
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [build-and-export-test-docker]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Load Docker
+        uses: ./.github/actions/load_docker
+        if: ${{ env.TEST_DOCKER_IMAGE == 'parsec-openssl-provider-test' }}
+        with:
+          image-name: "${{ env.TEST_DOCKER_IMAGE }}"
+          image-path: "/tmp"
+      - name: Run the container to execute the test script
+        run: 
+          docker run -v $(pwd):/tmp/parsec-openssl-provider -w /tmp/parsec-openssl-provider -t ${{ env.TEST_DOCKER_IMAGE }} ./ci.sh
