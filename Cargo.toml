@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "parsec-openssl-sys2",
+    "parsec-openssl2",
+    "parsec-openssl-provider",
+    "parsec-openssl-provider-shared",
+]
