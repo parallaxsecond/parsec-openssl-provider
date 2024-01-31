@@ -1,0 +1,16 @@
+[package]
+name = "parsec-openssl-provider-shared"
+version = "0.1.0"
+authors = ["Parsec Project Contributors"]
+description = "A parsec openssl provider dynamic library"
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["security", "service"]
+categories = ["cryptography", "hardware-support"]
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+parsec-openssl-provider = { path ="../parsec-openssl-provider" }
