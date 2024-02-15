@@ -11,6 +11,7 @@ edition = "2021"
 repository = "https://github.com/parallaxsecond/parsec-openssl-provider"
 
 [dependencies]
+log = "0.4"
+parsec-client = { git = "https://github.com/parallaxsecond/parsec-client-rust", tag="0.16.0" }
 parsec-openssl2 = { path = "../parsec-openssl2" }
 openssl-errors = "0.2.0"
-log = "0.4"
