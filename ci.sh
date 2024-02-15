@@ -16,6 +16,17 @@ where TEST can be one of:
 "
 }
 
+wait_for_service() {
+    while [ -z "$(pgrep parsec)" ]; do
+        sleep 1
+    done
+
+    sleep 5
+
+    # Check that Parsec successfully started and is running
+    pgrep parsec >/dev/null
+}
+
 error_msg () {
     echo "Error: $1"
     usage
@@ -55,6 +66,12 @@ if [ "$BUILD_AND_TEST" == "True" ]; then
     pushd parsec-openssl-provider-shared/ &&
     cargo build
     popd
+
+    pushd /tmp/parsec
+    ./target/debug/parsec -c e2e_tests/provider_cfg/mbed-crypto/config.toml &
+    popd
+
+    wait_for_service
 
     # Try loading the build parsec provider 
     PROVIDER_LOAD_RESULT=$(openssl list -providers -provider-path ./target/debug/ -provider libparsec_openssl_provider_shared)
