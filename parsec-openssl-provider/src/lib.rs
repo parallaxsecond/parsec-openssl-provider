@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #![allow(clippy::missing_safety_doc)]
 
-use std::mem;
 use std::sync::Arc;
 
 pub use openssl_errors;
@@ -16,6 +15,7 @@ use parsec_openssl2::openssl::error::ErrorStack;
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::{openssl_binding, types};
 
+mod keymgmt;
 mod provider;
 use provider::*;
 
