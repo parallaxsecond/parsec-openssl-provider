@@ -7,6 +7,7 @@ pub use parsec_openssl_sys2::openssl_binding;
 pub use parsec_openssl_sys2::param as openssl_provider_param;
 pub mod types;
 
+pub use openssl;
 pub use openssl2::*;
 
 // OpenSSL expects an integer return value of 1 and 0 for success and error

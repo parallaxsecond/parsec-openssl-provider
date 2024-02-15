@@ -11,8 +11,11 @@ use parsec_openssl2::{
     OPENSSL_SUCCESS, OSSL_PROVIDER,
 };
 
-use crate::openssl_binding::{OSSL_ALGORITHM, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR};
+use parsec_client::error::Result as ClientResult;
+use parsec_client::BasicClient;
+use std::sync::Arc;
 
+use crate::openssl_binding::{OSSL_ALGORITHM, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR};
 // Parsec provider parameters
 pub const PARSEC_PROVIDER_NAME: &[u8; 24] = b"Parsec OpenSSL Provider\0";
 pub const PARSEC_PROVIDER_VERSION: &[u8; 6] = b"0.1.0\0";
@@ -29,6 +32,21 @@ const PARSEC_PROVIDER_PARAM_TYPES: [OSSL_PARAM; 5] = [
     ossl_param!(OSSL_PROV_PARAM_STATUS, OSSL_PARAM_INTEGER),
     ossl_param!(),
 ];
+
+pub struct ParsecProviderContext {
+    client: BasicClient,
+}
+
+impl ParsecProviderContext {
+    pub fn new(client_name: String) -> ClientResult<Self> {
+        let client = BasicClient::new(Some(client_name))?;
+        Ok(ParsecProviderContext { client })
+    }
+
+    pub fn get_client(&self) -> &BasicClient {
+        &self.client
+    }
+}
 
 // Returns an array of OpenSSL parameter types that the
 // provider supports
@@ -78,6 +96,9 @@ pub type ProviderQueryPtr = unsafe extern "C" fn(
     no_cache: *mut ::std::os::raw::c_int,
 ) -> *const OSSL_ALGORITHM;
 
+// Function pointer of type OSSL_FUNC_PROVIDER_TEARDOWN
+pub type ProviderTeardownPtr = unsafe extern "C" fn(provctx: *const OSSL_PROVIDER);
+
 // The null provider implementation currently doesn't supply any algorithms to the core
 pub unsafe extern "C" fn parsec_provider_query(
     _prov: *mut OSSL_PROVIDER,
@@ -86,4 +107,10 @@ pub unsafe extern "C" fn parsec_provider_query(
 ) -> *const OSSL_ALGORITHM {
     *no_cache = 0;
     std::ptr::null_mut()
+}
+
+// Teardowns the Provider context
+pub unsafe extern "C" fn parsec_provider_teardown(provctx: *const OSSL_PROVIDER) {
+    // Makes sure the provider context gets dropped
+    Arc::from_raw(provctx);
 }
