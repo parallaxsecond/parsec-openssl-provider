@@ -24,7 +24,19 @@ macro_rules! ossl_dispatch {
     ($function_id:ident, $function:ident) => {
         OSSL_DISPATCH {
             function_id: $function_id as i32,
-            function: Some(mem::transmute($function)),
+            function: Some(std::mem::transmute($function)),
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! ossl_algorithm {
+    ($algorithm_names:ident, $property_definition:ident, $implementation:ident, $algorithm_description:ident) => {
+        OSSL_ALGORITHM {
+            algorithm_names: $algorithm_names.as_ptr() as *const std::os::raw::c_char,
+            property_definition: $property_definition.as_ptr() as *const std::os::raw::c_char,
+            implementation: $implementation.as_ptr() as *const OSSL_DISPATCH,
+            algorithm_description: $algorithm_description.as_ptr() as *const std::os::raw::c_char,
         }
     };
 }
