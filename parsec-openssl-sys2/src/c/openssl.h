@@ -20,6 +20,13 @@
 # define OSSL_FUNC_PROVIDER_GET_CAPABILITIES   1030
 # define OSSL_FUNC_PROVIDER_SELF_TEST          1031
 
+/* Basic key object creation */
+# define OSSL_FUNC_KEYMGMT_NEW                         1
+
+/* Operations */
+
+# define OSSL_OP_KEYMGMT                            10
+
 /* Opaque handles to be used with core upcall functions from providers */
 typedef struct ossl_core_handle_st OSSL_CORE_HANDLE;
 

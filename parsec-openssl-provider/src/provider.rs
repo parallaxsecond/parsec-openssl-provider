@@ -1,6 +1,7 @@
 // Copyright 2023 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::keymgmt::PARSEC_PROVIDER_KEYMGMT;
 use parsec_openssl2::openssl_provider_param::{
     OSSL_PROV_PARAM_BUILDINFO, OSSL_PROV_PARAM_NAME, OSSL_PROV_PARAM_STATUS,
     OSSL_PROV_PARAM_VERSION,
@@ -15,7 +16,9 @@ use parsec_client::error::Result as ClientResult;
 use parsec_client::BasicClient;
 use std::sync::Arc;
 
-use crate::openssl_binding::{OSSL_ALGORITHM, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR};
+use crate::openssl_binding::{
+    OSSL_ALGORITHM, OSSL_OP_KEYMGMT, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR,
+};
 // Parsec provider parameters
 pub const PARSEC_PROVIDER_NAME: &[u8; 24] = b"Parsec OpenSSL Provider\0";
 pub const PARSEC_PROVIDER_VERSION: &[u8; 6] = b"0.1.0\0";
@@ -34,17 +37,13 @@ const PARSEC_PROVIDER_PARAM_TYPES: [OSSL_PARAM; 5] = [
 ];
 
 pub struct ParsecProviderContext {
-    client: BasicClient,
+    pub client: BasicClient,
 }
 
 impl ParsecProviderContext {
     pub fn new(client_name: String) -> ClientResult<Self> {
         let client = BasicClient::new(Some(client_name))?;
         Ok(ParsecProviderContext { client })
-    }
-
-    pub fn get_client(&self) -> &BasicClient {
-        &self.client
     }
 }
 
@@ -102,11 +101,15 @@ pub type ProviderTeardownPtr = unsafe extern "C" fn(provctx: *const OSSL_PROVIDE
 // The null provider implementation currently doesn't supply any algorithms to the core
 pub unsafe extern "C" fn parsec_provider_query(
     _prov: *mut OSSL_PROVIDER,
-    _operation_id: ::std::os::raw::c_int,
+    operation_id: ::std::os::raw::c_int,
     no_cache: *mut ::std::os::raw::c_int,
 ) -> *const OSSL_ALGORITHM {
     *no_cache = 0;
-    std::ptr::null_mut()
+
+    match operation_id as u32 {
+        OSSL_OP_KEYMGMT => PARSEC_PROVIDER_KEYMGMT.as_ptr(),
+        _ => std::ptr::null_mut(),
+    }
 }
 
 // Teardowns the Provider context

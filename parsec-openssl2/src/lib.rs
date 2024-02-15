@@ -9,6 +9,7 @@ pub mod types;
 
 pub use openssl;
 pub use openssl2::*;
+pub type Openssl2Error = openssl2::Error;
 
 // OpenSSL expects an integer return value of 1 and 0 for success and error
 pub const OPENSSL_SUCCESS: std::os::raw::c_int = 1;
