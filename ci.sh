@@ -32,3 +32,7 @@ echo "Parsec OpenSSL Provider loaded successfully!!!!"
 if cargo fmt --version; then
 	cargo fmt --all -- --check
 fi
+
+if cargo clippy --version; then
+	cargo clippy --all-targets -- -D clippy::all -D clippy::cargo
+fi
