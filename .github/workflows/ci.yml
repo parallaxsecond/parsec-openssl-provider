@@ -37,12 +37,19 @@ jobs:
     needs: [build-and-export-test-docker]
     steps:
       - uses: actions/checkout@v3
-      - name: Load Docker
-        uses: ./.github/actions/load_docker
-        if: ${{ env.TEST_DOCKER_IMAGE == 'parsec-openssl-provider-test' }}
-        with:
-          image-name: "${{ env.TEST_DOCKER_IMAGE }}"
-          image-path: "/tmp"
       - name: Run the container to execute the test script
-        run: 
-          docker run -v $(pwd):/tmp/parsec-openssl-provider -w /tmp/parsec-openssl-provider -t ${{ env.TEST_DOCKER_IMAGE }} ./ci.sh
+        uses: ./.github/actions/ci_script
+        with:
+          ci-flags: "build-test"       
+
+  static-checks:
+    name: Run static checks 
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [build-and-export-test-docker]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run the container to execute the test script
+        uses: ./.github/actions/ci_script
+        with:
+          ci-flags: "static-checks"  
