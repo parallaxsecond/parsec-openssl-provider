@@ -1,13 +1,12 @@
 // Copyright 2023 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
-use parsec_openssl_provider::{
-    openssl_errors, parsec_provider_provider_init,
-};
+use parsec_openssl_provider::{openssl_errors, parsec_provider_provider_init};
 
-use parsec_openssl_provider::parsec_openssl2::{OPENSSL_SUCCESS,OPENSSL_ERROR};
-use parsec_openssl_provider::parsec_openssl2::types::VOID_PTR_PTR;
 use parsec_openssl_provider::parsec_openssl2::openssl_binding::{OSSL_CORE_HANDLE, OSSL_DISPATCH};
+use parsec_openssl_provider::parsec_openssl2::types::VOID_PTR_PTR;
+use parsec_openssl_provider::parsec_openssl2::{OPENSSL_ERROR, OPENSSL_SUCCESS};
+
 mod catch;
 use catch::r#catch;
 

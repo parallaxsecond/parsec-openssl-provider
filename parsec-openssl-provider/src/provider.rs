@@ -11,9 +11,8 @@ use parsec_openssl2::{
     OPENSSL_SUCCESS, OSSL_PROVIDER,
 };
 
-use crate::openssl_binding::{
-    OSSL_ALGORITHM, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR,
-};
+use crate::openssl_binding::{OSSL_ALGORITHM, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR};
+
 // Parsec provider parameters
 pub const PARSEC_PROVIDER_NAME: &[u8; 24] = b"Parsec OpenSSL Provider\0";
 pub const PARSEC_PROVIDER_VERSION: &[u8; 6] = b"0.1.0\0";
