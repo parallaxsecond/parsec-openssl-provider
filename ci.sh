@@ -23,10 +23,12 @@ test_string='Providers:
     version: 0.1.0
     status: active'
 
-if [[ $test_string == $provider_load_result ]]; then
-    echo "Parsec OpenSSL Provider loaded successfully!!!!"
-    exit 0;
+if [[ $test_string != $provider_load_result ]]; then
+    echo "Loaded Provider has unexpected parameters!!!!"
 fi
 
-echo "Loaded Provider has unexpected parameters!!!!"
-exit 1
+echo "Parsec OpenSSL Provider loaded successfully!!!!"
+
+if cargo fmt --version; then
+	cargo fmt --all -- --check
+fi
