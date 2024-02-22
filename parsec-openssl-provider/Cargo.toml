@@ -8,6 +8,7 @@ readme = "README.md"
 keywords = ["security", "service"]
 categories = ["cryptography", "hardware-support"]
 edition = "2021"
+repository = "https://github.com/parallaxsecond/parsec-openssl-provider"
 
 [dependencies]
 parsec-openssl2 = { path = "../parsec-openssl2" }

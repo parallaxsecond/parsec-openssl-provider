@@ -3,7 +3,12 @@ name = "parsec-openssl2"
 version = "0.1.0"
 license = "Apache-2.0"
 authors = ["Parsec Project Contributors"]
+description = "Rust-native wrapper around the OpenSSL API"
 edition = "2021"
+repository = "https://github.com/parallaxsecond/parsec-openssl-provider"
+categories = ["api-bindings", "external-ffi-bindings", "cryptography", "hardware-support"]
+readme = "README.md"
+keywords = ["security", "openssl"]
 
 [dependencies]
 parsec-openssl-sys2 = { path = "../parsec-openssl-sys2" }

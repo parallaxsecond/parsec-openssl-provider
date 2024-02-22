@@ -2,8 +2,13 @@
 name = "parsec-openssl-sys2"
 version = "0.1.0"
 license = "Apache-2.0"
+description = "FFI wrapper around the OpenSSL API"
 authors = ["Parsec Project Contributors"]
 edition = "2021"
+repository = "https://github.com/parallaxsecond/parsec-openssl-provider"
+categories = ["api-bindings", "external-ffi-bindings", "cryptography", "hardware-support"]
+readme = "README.md"
+keywords = ["security", "openssl"]
 
 [build-dependencies]
 bindgen = { version = "0.66.1" }
