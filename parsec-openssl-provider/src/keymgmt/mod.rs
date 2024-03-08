@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::openssl_binding::{
-    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_NEW,
+    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
+    OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
 };
 use crate::ParsecProviderContext;
 use parsec_openssl2::types::VOID_PTR;
@@ -13,6 +14,7 @@ use std::sync::{Arc, Mutex};
 const PARSEC_PROVIDER_RSA_NAME: &[u8; 4] = b"RSA\0";
 const PARSEC_PROVIDER_DESCRIPTION_RSA: &[u8; 11] = b"Parsec RSA\0";
 const PARSEC_PROVIDER_DFLT_PROPERTIES: &[u8; 16] = b"provider=parsec\0";
+const PARSEC_PROVIDER_KEY_NAME: &[u8; 25] = b"parsec_provider_key_name\0";
 
 struct ParsecProviderKeyObject {
     _provctx: Arc<ParsecProviderContext>,
@@ -49,15 +51,37 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_free(keydata: VOID_PTR) {
     // When arc_keydata is dropped, the reference count is decremented and the memory is freed
 }
 
+pub unsafe extern "C" fn parsec_provider_kmgmt_settable_params(
+    _provctx: VOID_PTR,
+) -> *const OSSL_PARAM {
+    static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+    static mut KEYMGMT_TABLE: [OSSL_PARAM; 1] = [parsec_openssl2::ossl_param!(); 1];
+
+    ONCE_INIT.call_once(|| {
+        KEYMGMT_TABLE = [ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR)];
+    });
+
+    KEYMGMT_TABLE.as_ptr()
+}
+
 pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
 pub type KeyMgmtFreePtr = unsafe extern "C" fn(VOID_PTR);
+pub type KeyMgmtSettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
 
 const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
+const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
+    parsec_provider_kmgmt_settable_params;
 
-const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 2] = [
+const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 3] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
+            OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR
+        )
+    },
 ];
 
 pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 1] = [ossl_algorithm!(

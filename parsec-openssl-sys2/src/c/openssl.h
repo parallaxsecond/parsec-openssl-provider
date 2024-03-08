@@ -22,6 +22,11 @@
 
 /* Basic key object creation */
 # define OSSL_FUNC_KEYMGMT_NEW                         1
+# define OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS       0x80
+
+/* Import and export functions, with discovery */
+#define OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS             12
+#define OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS             14
 
 /* Basic key object destruction */
 # define OSSL_FUNC_KEYMGMT_FREE                       10
