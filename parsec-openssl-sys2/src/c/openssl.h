@@ -25,6 +25,7 @@
 # define OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS       0x80
 
 /* Import and export functions, with discovery */
+#define OSSL_FUNC_KEYMGMT_IMPORT                      40
 #define OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS             12
 #define OSSL_FUNC_KEYMGMT_SET_PARAMS                  13
 #define OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS             14
