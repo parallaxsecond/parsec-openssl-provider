@@ -26,6 +26,7 @@
 
 /* Import and export functions, with discovery */
 #define OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS             12
+#define OSSL_FUNC_KEYMGMT_SET_PARAMS                  13
 #define OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS             14
 
 /* Basic key object destruction */
