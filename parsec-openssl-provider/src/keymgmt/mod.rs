@@ -3,7 +3,8 @@
 
 use crate::openssl_binding::{
     OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_NEW,
-    OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS, OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
+    OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS, OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_PARAM,
+    OSSL_PARAM_UTF8_PTR,
 };
 use crate::{
     ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
@@ -73,18 +74,62 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_settable_params(
     KEYMGMT_TABLE.as_ptr()
 }
 
+// should update information data associated with the given keydata
+pub unsafe extern "C" fn parsec_provider_kmgmt_set_params(
+    keydata: VOID_PTR,
+    params: *mut OSSL_PARAM,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_SET_PARAMS), || {
+        if keydata.is_null() || params.is_null() {
+            Err("Null pointer received as parameter".into())
+        } else {
+            let keyobj = keydata as *mut ParsecProviderKeyObject;
+            Arc::increment_strong_count(keyobj);
+            let arc_keyobj = Arc::from_raw(keyobj);
+
+            let param: openssl_binding::OSSL_PARAM =
+                *openssl_returns_nonnull(openssl_binding::OSSL_PARAM_locate(
+                    params,
+                    PARSEC_PROVIDER_KEY_NAME.as_ptr() as *const std::os::raw::c_char,
+                ))?;
+
+            let key_name: &mut [u8] =
+                core::slice::from_raw_parts_mut(param.data as *mut u8, param.data_size);
+
+            let mut keyobj_key_name = arc_keyobj.key_name.lock().unwrap();
+            *keyobj_key_name = Some(std::str::from_utf8(key_name)?.to_string());
+
+            Ok(OPENSSL_SUCCESS)
+        }
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
 pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
 pub type KeyMgmtFreePtr = unsafe extern "C" fn(VOID_PTR);
+pub type KeyMgmtSetParamsPtr =
+    unsafe extern "C" fn(VOID_PTR, *mut OSSL_PARAM) -> std::os::raw::c_int;
 pub type KeyMgmtSettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
 
 const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
+const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
 
-const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 4] = [
+const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 5] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_SET_PARAMS,
+            OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR
+        )
+    },
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
