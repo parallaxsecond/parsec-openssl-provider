@@ -66,6 +66,12 @@ pub unsafe fn parsec_provider_provider_init(
         ];
     });
 
+    if out.is_null() || provctx.is_null() {
+        return Err(parsec_openssl2::Error::SysReturnedNull {
+            inner: ErrorStack::get(),
+        });
+    }
+
     *out = DISPATCH_TABLE.as_ptr();
 
     match ParsecProviderContext::new("parsec-tool".to_string()) {
