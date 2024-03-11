@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::openssl_bindings::{
-    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_IMPORT,
-    OSSL_FUNC_KEYMGMT_IMPORT_TYPES, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
-    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS,
-    OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
+    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_HAS,
+    OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_TYPES, OSSL_FUNC_KEYMGMT_NEW,
+    OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS, OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_FUNC_KEYMGMT_VALIDATE,
+    OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
 };
 use crate::{
     ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
@@ -110,6 +110,42 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_set_params(
     }
 }
 
+/*
+should return 1 if all the selected data subsets are contained in the given keydata or 0 otherwise.
+For algorithms where some selection is not meaningful the function should just return 1 as the
+selected subset is not really missing in the key.
+*/
+pub unsafe extern "C" fn parsec_provider_kmgmt_has(
+    keydata: VOID_PTR,
+    selection: std::os::raw::c_int,
+) -> std::os::raw::c_int {
+
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_HAS), || {
+        if keydata.is_null() {
+            return Err("keydata pointer should not be NULL.".into());
+        }
+
+        if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
+            let keydata_ptr = keydata as *const ParsecProviderKeyObject;
+            Arc::increment_strong_count(keydata_ptr);
+            let arc_keydata = Arc::from_raw(keydata_ptr);
+            let key_name = arc_keydata.key_name.lock().unwrap();
+            if key_name.is_some() {
+                Ok(OPENSSL_SUCCESS)
+            } else {
+                Err("key name has not been set.".into())
+            }
+        } else {
+            Ok(OPENSSL_SUCCESS)
+        }
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
 pub unsafe extern "C" fn parsec_provider_kmgmt_import(
     key_data: VOID_PTR,
     selection: std::os::raw::c_int,
@@ -175,6 +211,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_validate(
 
 pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
 pub type KeyMgmtFreePtr = unsafe extern "C" fn(VOID_PTR);
+pub type KeyMgmtHasPtr = unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int) -> std::os::raw::c_int;
 pub type KeyMgmtImportPtr =
     unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int, *mut OSSL_PARAM) -> std::os::raw::c_int;
 pub type KeyMgmtImportTypesPtr = unsafe extern "C" fn(std::os::raw::c_int) -> *const OSSL_PARAM;
@@ -186,6 +223,7 @@ pub type KeyMgmtValidatePtr =
 
 const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
+const OSSL_FUNC_KEYMGMT_HAS_PTR: KeyMgmtHasPtr = parsec_provider_kmgmt_has;
 const OSSL_FUNC_KEYMGMT_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_import;
 const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
     parsec_provider_kmgmt_import_types;
@@ -194,9 +232,10 @@ const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
 const OSSL_FUNC_KEYMGMT_VALIDATE_PTR: KeyMgmtValidatePtr = parsec_provider_kmgmt_validate;
 
-const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 8] = [
+const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 9] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_HAS_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_PTR) },
     unsafe {
         ossl_dispatch!(

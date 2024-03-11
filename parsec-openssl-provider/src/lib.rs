@@ -108,11 +108,12 @@ openssl_errors::openssl_errors! {
     #[allow(clippy::empty_enum)]
     pub library Error("parsec_openssl_provider") {
         functions {
-            PROVIDER_TEARDOWN("parsec_provider_teardown");
             PROVIDER_GETTABLE_PARAMS("parsec_provider_gettable_params");
             PROVIDER_GET_PARAMS("parsec_provider_get_params");
-            PROVIDER_QUERY("parsec_provider_query");
+            PROVIDER_KEYMGMT_HAS("parsec_provider_kmgmt_has");
             PROVIDER_KEYMGMT_SET_PARAMS("parsec_provider_kmgmt_set_params");
+            PROVIDER_QUERY("parsec_provider_query");
+            PROVIDER_TEARDOWN("parsec_provider_teardown");
         }
 
         reasons {
