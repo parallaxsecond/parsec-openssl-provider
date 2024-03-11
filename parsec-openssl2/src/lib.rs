@@ -4,7 +4,6 @@
 
 pub use openssl_sys::OSSL_PROVIDER;
 pub use parsec_openssl_sys2::openssl_binding;
-pub use parsec_openssl_sys2::param as openssl_provider_param;
 pub mod types;
 
 pub use openssl;
@@ -79,7 +78,7 @@ pub unsafe fn locate_and_set_provider_status_param(
 ) -> Result<(), Error> {
     let ptr = openssl_returns_nonnull(openssl_binding::OSSL_PARAM_locate(
         params,
-        openssl_provider_param::OSSL_PROV_PARAM_STATUS.as_ptr() as *const std::os::raw::c_char,
+        openssl_binding::OSSL_PROV_PARAM_STATUS.as_ptr() as *const std::os::raw::c_char,
     ))?;
 
     // OpenSSL returns OPENSSL_SUCCESS

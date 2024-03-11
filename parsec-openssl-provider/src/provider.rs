@@ -1,11 +1,6 @@
 // Copyright 2023 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
-use parsec_openssl2::openssl_provider_param::{
-    OSSL_PROV_PARAM_BUILDINFO, OSSL_PROV_PARAM_NAME, OSSL_PROV_PARAM_STATUS,
-    OSSL_PROV_PARAM_VERSION,
-};
-
 use parsec_openssl2::{
     locate_and_set_provider_status_param, locate_and_set_utf8_param, ossl_param, OPENSSL_ERROR,
     OPENSSL_SUCCESS, OSSL_PROVIDER,
@@ -15,7 +10,11 @@ use parsec_client::error::Result as ClientResult;
 use parsec_client::BasicClient;
 use std::sync::Arc;
 
-use crate::openssl_binding::{OSSL_ALGORITHM, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR};
+use crate::openssl_binding::{
+    OSSL_ALGORITHM, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR, OSSL_PROV_PARAM_BUILDINFO,
+    OSSL_PROV_PARAM_NAME, OSSL_PROV_PARAM_STATUS, OSSL_PROV_PARAM_VERSION,
+};
+
 // Parsec provider parameters
 pub const PARSEC_PROVIDER_NAME: &[u8; 24] = b"Parsec OpenSSL Provider\0";
 pub const PARSEC_PROVIDER_VERSION: &[u8; 6] = b"0.1.0\0";
