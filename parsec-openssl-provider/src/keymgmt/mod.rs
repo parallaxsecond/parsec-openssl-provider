@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::openssl_bindings::{
-    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_HAS,
-    OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_TYPES, OSSL_FUNC_KEYMGMT_MATCH,
-    OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS, OSSL_FUNC_KEYMGMT_SET_PARAMS,
-    OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM,
-    OSSL_PARAM_UTF8_PTR,
+    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_FREE,
+    OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
+    OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
+    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS,
+    OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
 };
 use crate::{
     ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
@@ -19,6 +19,16 @@ use std::sync::{Arc, Mutex};
 struct ParsecProviderKeyObject {
     provctx: Arc<ParsecProviderContext>,
     key_name: Mutex<Option<String>>,
+}
+
+impl Clone for ParsecProviderKeyObject {
+    fn clone(&self) -> Self {
+        let key_name = self.key_name.lock().unwrap();
+        ParsecProviderKeyObject {
+            provctx: self.provctx.clone(),
+            key_name: Mutex::new(key_name.clone()),
+        }
+    }
 }
 
 fn kmgmt_keyobj_new(provctx: Arc<ParsecProviderContext>) -> Arc<ParsecProviderKeyObject> {
@@ -308,6 +318,27 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_match(
     }
 }
 
+/*
+should duplicate data subsets indicated by selection or the whole key data keydata_from and create a new provider side
+key object with the data.
+*/
+pub unsafe extern "C" fn parsec_provider_keymgmt_dup(
+    keydata_from: VOID_PTR,
+    selection: std::os::raw::c_int,
+) -> VOID_PTR {
+    if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
+        let keydata_from_ptr = keydata_from as *const ParsecProviderKeyObject;
+        Arc::increment_strong_count(keydata_from_ptr);
+        let arc_keydata_from = Arc::from_raw(keydata_from_ptr);
+
+        let duplicate: ParsecProviderKeyObject = (*arc_keydata_from).clone();
+        Arc::into_raw(Arc::new(duplicate)) as VOID_PTR
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+pub type KeyMgmtDupPtr = unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int) -> VOID_PTR;
 pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
 pub type KeyMgmtFreePtr = unsafe extern "C" fn(VOID_PTR);
 pub type KeyMgmtHasPtr = unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int) -> std::os::raw::c_int;
@@ -322,6 +353,7 @@ pub type KeyMgmtValidatePtr =
 pub type KeyMgmtMatchPtr =
     unsafe extern "C" fn(VOID_PTR, VOID_PTR, std::os::raw::c_int) -> std::os::raw::c_int;
 
+const OSSL_FUNC_KEYMGMT_DUP_PTR: KeyMgmtDupPtr = parsec_provider_keymgmt_dup;
 const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
 const OSSL_FUNC_KEYMGMT_HAS_PTR: KeyMgmtHasPtr = parsec_provider_kmgmt_has;
@@ -334,7 +366,8 @@ const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
 const OSSL_FUNC_KEYMGMT_VALIDATE_PTR: KeyMgmtValidatePtr = parsec_provider_kmgmt_validate;
 const OSSL_FUNC_KEYMGMT_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_kmgmt_match;
 
-const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 10] = [
+const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_HAS_PTR) },
