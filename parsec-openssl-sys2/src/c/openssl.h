@@ -23,6 +23,9 @@
 /* Basic key object creation */
 # define OSSL_FUNC_KEYMGMT_NEW                         1
 
+/* Basic key object destruction */
+# define OSSL_FUNC_KEYMGMT_FREE                       10
+
 /* Operations */
 
 # define OSSL_OP_KEYMGMT                            10

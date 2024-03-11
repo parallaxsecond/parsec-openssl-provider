@@ -1,7 +1,9 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::openssl_binding::{OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_NEW};
+use crate::openssl_binding::{
+    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_NEW,
+};
 use crate::ParsecProviderContext;
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
@@ -35,11 +37,28 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_new(provctx: VOID_PTR) -> VOID_PT
     Arc::into_raw(kmgmt_keyobj_new(context)) as VOID_PTR
 }
 
-pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
-const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
+pub unsafe extern "C" fn parsec_provider_kmgmt_free(keydata: VOID_PTR) {
+    if keydata.is_null() {
+        return;
+    }
+    let keydata_ptr = keydata as *const ParsecProviderKeyObject;
+    let arc_keydata = Arc::from_raw(keydata_ptr);
+    // A strong_count of 1 should be guaranteed by OPENSSL, as it doesn't make sense to be calling
+    // free when you are still using keydata.
+    assert_eq!(1, Arc::strong_count(&arc_keydata));
+    // When arc_keydata is dropped, the reference count is decremented and the memory is freed
+}
 
-const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 1] =
-    [unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) }];
+pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
+pub type KeyMgmtFreePtr = unsafe extern "C" fn(VOID_PTR);
+
+const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
+const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
+
+const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 2] = [
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
+];
 
 pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 1] = [ossl_algorithm!(
     PARSEC_PROVIDER_RSA_NAME,
