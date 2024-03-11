@@ -4,8 +4,8 @@
 use crate::openssl_binding::{
     OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_IMPORT,
     OSSL_FUNC_KEYMGMT_IMPORT_TYPES, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
-    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM,
-    OSSL_PARAM_UTF8_PTR,
+    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS,
+    OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
 };
 use crate::{
     ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
@@ -148,6 +148,31 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import_types(
     }
 }
 
+// Should check if the keydata contains valid data subsets indicated by selection.
+pub unsafe extern "C" fn parsec_provider_kmgmt_validate(
+    keydata: VOID_PTR,
+    selection: std::os::raw::c_int,
+    _checktype: std::os::raw::c_int,
+) -> std::os::raw::c_int {
+    if keydata.is_null() {
+        return OPENSSL_ERROR;
+    }
+
+    if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
+        let keydata_ptr = keydata as *const ParsecProviderKeyObject;
+        Arc::increment_strong_count(keydata_ptr);
+        let arc_keydata = Arc::from_raw(keydata_ptr);
+        let key_name = arc_keydata.key_name.lock().unwrap();
+        if key_name.is_some() {
+            OPENSSL_SUCCESS
+        } else {
+            OPENSSL_ERROR
+        }
+    } else {
+        OPENSSL_SUCCESS
+    }
+}
+
 pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
 pub type KeyMgmtFreePtr = unsafe extern "C" fn(VOID_PTR);
 pub type KeyMgmtImportPtr =
@@ -156,6 +181,8 @@ pub type KeyMgmtImportTypesPtr = unsafe extern "C" fn(std::os::raw::c_int) -> *c
 pub type KeyMgmtSetParamsPtr =
     unsafe extern "C" fn(VOID_PTR, *mut OSSL_PARAM) -> std::os::raw::c_int;
 pub type KeyMgmtSettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
+pub type KeyMgmtValidatePtr =
+    unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int, std::os::raw::c_int) -> std::os::raw::c_int;
 
 const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
@@ -165,8 +192,9 @@ const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
+const OSSL_FUNC_KEYMGMT_VALIDATE_PTR: KeyMgmtValidatePtr = parsec_provider_kmgmt_validate;
 
-const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 7] = [
+const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 8] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_PTR) },
@@ -188,6 +216,7 @@ const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 7] = [
             OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR
         )
     },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_FUNC_KEYMGMT_VALIDATE_PTR) },
     ossl_dispatch!(),
 ];
 
