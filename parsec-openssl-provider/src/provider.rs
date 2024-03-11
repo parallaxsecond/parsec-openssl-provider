@@ -111,6 +111,14 @@ pub unsafe extern "C" fn parsec_provider_query(
 
 // Teardowns the Provider context
 pub unsafe extern "C" fn parsec_provider_teardown(provctx: *const OSSL_PROVIDER) {
+    if provctx.is_null() {
+        return;
+    }
     // Makes sure the provider context gets dropped
-    Arc::from_raw(provctx);
+    let provctx_ptr = provctx as *const ParsecProviderContext;
+    let arc_provctx = Arc::from_raw(provctx_ptr);
+    // A strong_count of 1 should be guaranteed by OPENSSL, as it doesn't make sense to be calling
+    // free when you are still using provctx.
+    assert_eq!(1, Arc::strong_count(&arc_provctx));
+    // When provctx is dropped, the reference count is decremented and the memory is freed
 }
