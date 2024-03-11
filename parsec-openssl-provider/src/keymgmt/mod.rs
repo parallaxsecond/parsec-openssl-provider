@@ -3,8 +3,9 @@
 
 use crate::openssl_binding::{
     OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_IMPORT,
-    OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS, OSSL_FUNC_KEYMGMT_SET_PARAMS,
-    OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
+    OSSL_FUNC_KEYMGMT_IMPORT_TYPES, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
+    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM,
+    OSSL_PARAM_UTF8_PTR,
 };
 use crate::{
     ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
@@ -123,10 +124,35 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import(
     OPENSSL_SUCCESS
 }
 
+/*
+should return an array of descriptor OSSL_PARAM for data indicated by selection, for parameters that
+OSSL_FUNC_keymgmt_import() can handle
+*/
+pub unsafe extern "C" fn parsec_provider_kmgmt_import_types(
+    selection: std::os::raw::c_int,
+) -> *const OSSL_PARAM {
+    if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
+        static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+        static mut IMPORT_TYPES_TABLE: [OSSL_PARAM; 2] = [ossl_param!(); 2];
+
+        ONCE_INIT.call_once(|| {
+            IMPORT_TYPES_TABLE = [
+                ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR),
+                ossl_param!(),
+            ];
+        });
+
+        IMPORT_TYPES_TABLE.as_ptr()
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
 pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
 pub type KeyMgmtFreePtr = unsafe extern "C" fn(VOID_PTR);
 pub type KeyMgmtImportPtr =
     unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int, *mut OSSL_PARAM) -> std::os::raw::c_int;
+pub type KeyMgmtImportTypesPtr = unsafe extern "C" fn(std::os::raw::c_int) -> *const OSSL_PARAM;
 pub type KeyMgmtSetParamsPtr =
     unsafe extern "C" fn(VOID_PTR, *mut OSSL_PARAM) -> std::os::raw::c_int;
 pub type KeyMgmtSettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
@@ -134,14 +160,22 @@ pub type KeyMgmtSettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSS
 const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
 const OSSL_FUNC_KEYMGMT_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_import;
+const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
+    parsec_provider_kmgmt_import_types;
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
 
-const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 6] = [
+const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 7] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_PTR) },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
+            OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR
+        )
+    },
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_SET_PARAMS,
