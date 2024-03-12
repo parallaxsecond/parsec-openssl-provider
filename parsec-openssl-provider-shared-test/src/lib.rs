@@ -19,7 +19,7 @@ pub use parsec_openssl_provider::parsec_openssl2::openssl::{lib_ctx::LibCtx, pro
 
 // These needs to be replaced with consts from the key management module
 pub const PARSEC_PROVIDER_RSA: &[u8; 4] = b"RSA\0";
-pub const PARSEC_PROVIDER_PROPERTY: &[u8; 17] = b"provider=default\0";
+pub const PARSEC_PROVIDER_PROPERTY: &[u8; 16] = b"provider=parsec\0";
 
 // Loads a provider into the given library context
 pub fn load_provider(lib_ctx: &LibCtx, provider_name: &str, provider_path: String) -> Provider {
@@ -41,7 +41,6 @@ pub unsafe fn load_key(lib_ctx: &LibCtx, param: *mut OSSL_PARAM, parsec_pkey: *m
         EVP_PKEY_fromdata(
             evp_ctx,
             parsec_pkey as _,
-            // Change 3: Select the appropriate macro here to load the param value
             EVP_PKEY_KEY_PARAMETERS.try_into().unwrap(),
             param,
         ),

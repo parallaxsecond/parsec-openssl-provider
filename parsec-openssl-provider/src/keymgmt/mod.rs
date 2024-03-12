@@ -6,7 +6,7 @@ use crate::openssl_binding::{
 };
 use crate::{
     ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
-    PARSEC_PROVIDER_RSA_NAME,
+    PARSEC_PROVIDER_KEY_NAME, PARSEC_PROVIDER_RSA_NAME,
 };
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;

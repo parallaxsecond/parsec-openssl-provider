@@ -101,7 +101,7 @@ if [ "$TEST" == "True" ]; then
     # The parsec-openssl-provider-shared-test/src/lib.rs contains some unit tests from the generated
     # test bindings from bindgen. So run only the integration tests in the test crate. 
     pushd parsec-openssl-provider-shared-test/
-    cargo test --test '*'
+    cargo test --test '*' -- --nocapture
     popd
 fi
 
