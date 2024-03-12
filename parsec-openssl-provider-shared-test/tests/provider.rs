@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use parsec_openssl_provider::parsec_openssl2::{openssl_binding, ossl_param};
+use parsec_openssl_provider::PARSEC_PROVIDER_KEY_NAME;
 use parsec_openssl_provider_shared_test::*;
 use std::ffi::CStr;
 
@@ -30,24 +31,21 @@ fn test_parsec_provider_name() {
 }
 
 // Loads a keys from the provider and returns an EVP_PKEY object with the details.
-// ToDo: This is working with the default provider and currently loads a key with
-// no parameters. In order to test it with the parsec provider 3 changes are needed
-// explained in comments below.
 #[test]
 fn test_loading_keys() {
     let provider_path = String::from("../target/debug/");
-    // Change 1: name the parsec provider here
-    let provider_name = String::from("default");
+    let provider_name = String::from("libparsec_openssl_provider_shared");
 
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
     let provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
 
-    // Change 2: Setup the param as needed for the parsec provider.
     // Create a key beforehand using the parsec-tool and then run the test.
-    let mut param = ossl_param!();
+    let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name);
     unsafe {
         let mut parsec_pkey: *mut EVP_PKEY = std::ptr::null_mut();
         load_key(&lib_ctx, &mut param, &mut parsec_pkey);
+
         EVP_PKEY_free(parsec_pkey);
     }
 }

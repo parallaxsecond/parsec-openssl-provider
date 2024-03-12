@@ -70,6 +70,15 @@ macro_rules! ossl_param {
             return_size: usize::MAX,
         }
     };
+    ($key:ident, $data_type:ident, $data:ident) => {
+        OSSL_PARAM {
+            key: $key.as_ptr() as *const std::os::raw::c_char,
+            data_type: $data_type,
+            data: $data.as_ptr() as *mut std::os::raw::c_void,
+            data_size: $data.len(),
+            return_size: usize::MAX,
+        }
+    };
 }
 
 // Finds the OpenSSL parameter type in the parameter array "params" and sets the value
