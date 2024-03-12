@@ -3,8 +3,9 @@
 
 use crate::keymgmt::ParsecProviderKeyObject;
 use crate::openssl_bindings::{
-    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_NEWCTX,
-    OSSL_FUNC_SIGNATURE_SIGN, OSSL_FUNC_SIGNATURE_SIGN_INIT, OSSL_PARAM,
+    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_SIGNATURE_DUPCTX, OSSL_FUNC_SIGNATURE_FREECTX,
+    OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_SIGN, OSSL_FUNC_SIGNATURE_SIGN_INIT,
+    OSSL_PARAM,
 };
 use crate::{
     PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
@@ -32,6 +33,14 @@ impl ParsecProviderSignatureContext {
     }
 }
 
+impl Clone for ParsecProviderSignatureContext {
+    fn clone(&self) -> Self {
+        let new_keyobj = (*(self.keyobj.lock().unwrap())).clone();
+        ParsecProviderSignatureContext {
+            keyobj: Mutex::new(new_keyobj),
+        }
+    }
+}
 /*
 Should create and return a pointer to a provider side structure for holding context information during a
 signature operation. A pointer to this context will be passed back in a number of the other signature operation
@@ -156,9 +165,26 @@ unsafe extern "C" fn parsec_provider_signature_sign(
     }
 }
 
+/*
+should duplicate the provider side signature context in the ctx parameter and return the duplicate copy
+*/
+pub unsafe extern "C" fn parsec_provider_signature_dupctx(ctx: VOID_PTR) -> VOID_PTR {
+    if ctx.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let ctx_ptr = ctx as *const ParsecProviderSignatureContext;
+    Arc::increment_strong_count(ctx_ptr);
+    let arc_ctx = Arc::from_raw(ctx_ptr);
+
+    let duplicate: ParsecProviderSignatureContext = (*arc_ctx).clone();
+    Arc::into_raw(Arc::new(duplicate)) as VOID_PTR
+}
+
 pub type SignatureNewCtxPtr =
     unsafe extern "C" fn(VOID_PTR, *const std::os::raw::c_char) -> VOID_PTR;
 pub type SignatureFreeCtxPtr = unsafe extern "C" fn(VOID_PTR);
+pub type SignatureDupCtxPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
 pub type SignatureSignPtr = unsafe extern "C" fn(
     VOID_PTR,
     *mut std::os::raw::c_uchar,
@@ -172,13 +198,15 @@ pub type SignatureSignInitPtr =
 
 const OSSL_FUNC_SIGNATURE_NEWCTX_PTR: SignatureNewCtxPtr = parsec_provider_signature_newctx;
 const OSSL_FUNC_SIGNATURE_FREECTX_PTR: SignatureFreeCtxPtr = parsec_provider_signature_freectx;
+const OSSL_FUNC_SIGNATURE_DUPCTX_PTR: SignatureDupCtxPtr = parsec_provider_signature_dupctx;
 const OSSL_FUNC_SIGNATURE_SIGN_PTR: SignatureSignPtr = parsec_provider_signature_sign;
 const OSSL_FUNC_SIGNATURE_SIGN_INIT_PTR: SignatureSignInitPtr = parsec_provider_signature_sign_init;
 
 const PARSEC_PROVIDER_ECDSA_SIGN_IMPL: [OSSL_DISPATCH; 1] = [ossl_dispatch!()];
-const PARSEC_PROVIDER_RSA_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
+const PARSEC_PROVIDER_RSA_SIGN_IMPL: [OSSL_DISPATCH; 6] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_FREECTX_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_DUPCTX, OSSL_FUNC_SIGNATURE_DUPCTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_SIGN, OSSL_FUNC_SIGNATURE_SIGN_PTR) },
     unsafe {
         ossl_dispatch!(

@@ -23,10 +23,11 @@ pub struct ParsecProviderKeyObject {
 
 impl Clone for ParsecProviderKeyObject {
     fn clone(&self) -> Self {
-        let key_name = self.key_name.lock().unwrap();
+        let new_name = (*self.key_name.lock().unwrap()).clone();
+
         ParsecProviderKeyObject {
             provctx: self.provctx.clone(),
-            key_name: Mutex::new(key_name.clone()),
+            key_name: Mutex::new(new_name),
         }
     }
 }
