@@ -97,6 +97,12 @@ if [ "$TEST" == "True" ]; then
     fi
 
     echo "Parsec OpenSSL Provider loaded successfully!!!!"
+
+    # The parsec-openssl-provider-shared-test/src/lib.rs contains some unit tests from the generated
+    # test bindings from bindgen. So run only the integration tests in the test crate. 
+    pushd parsec-openssl-provider-shared-test/
+    cargo test --test '*'
+    popd
 fi
 
 if [ "$STATIC_CHECKS" == "True" ]; then
