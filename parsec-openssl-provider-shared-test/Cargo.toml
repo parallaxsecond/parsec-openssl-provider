@@ -1,0 +1,19 @@
+[package]
+name = "parsec-openssl-provider-shared-test"
+version = "0.1.0"
+authors = ["Parsec Project Contributors"]
+description = "An end to end test framework for the parsec provider"
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["security", "service"]
+categories = ["cryptography", "hardware-support"]
+edition = "2021"
+repository = "https://github.com/parallaxsecond/parsec-openssl-provider"
+
+[dependencies]
+foreign-types-shared = "0.1.1"
+parsec-openssl-provider = { path ="../parsec-openssl-provider" }
+
+[build-dependencies]
+pkg-config = "0.3.18"
+bindgen = { version = "0.66.1" }
