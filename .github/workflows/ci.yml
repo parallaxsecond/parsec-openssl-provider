@@ -42,6 +42,18 @@ jobs:
         with:
           ci-flags: "build-and-test"
 
+  build-msrv:
+    name: MSRV - Build Parsec OpenSSL Provider
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [build-and-export-test-docker]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run the container to execute the test script
+        uses: ./.github/actions/ci_script
+        with:
+          ci-flags: "build"
+
   static-checks:
     name: Run static checks 
     runs-on: ubuntu-latest
