@@ -30,7 +30,7 @@ pub unsafe fn parsec_provider_provider_init(
     out: *mut *const OSSL_DISPATCH,
     provctx: types::VOID_PTR_PTR,
 ) -> Result<(), parsec_openssl2::Error> {
-    env_logger::init();
+    let _ = env_logger::try_init();
 
     let parsec_provider_teardown_ptr: ProviderTeardownPtr = parsec_provider_teardown;
 
