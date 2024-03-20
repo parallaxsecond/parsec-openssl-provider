@@ -11,7 +11,7 @@ Continuous Integration test script
 
 Usage: ./ci.sh --TEST
 where TEST can be one of:
-    --build-test
+    --build-and-test
     --static-checks
 "
 }
@@ -40,13 +40,15 @@ fi
 
 rustup update
 
-BUILD_AND_TEST="False"
+BUILD="False"
+TEST="False"
 STATIC_CHECKS="False"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --build-test )
-            BUILD_AND_TEST="True"
+        --build-and-test )
+            BUILD="True"
+            TEST="True"
         ;;
         --static-checks )
             STATIC_CHECKS="True"
@@ -58,7 +60,7 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-if [ "$BUILD_AND_TEST" == "True" ]; then
+if [ "$BUILD" == "True" ]; then
     echo "OpenSSL version being used:"
     openssl version
 
@@ -66,7 +68,9 @@ if [ "$BUILD_AND_TEST" == "True" ]; then
     pushd parsec-openssl-provider-shared/ &&
     cargo build
     popd
+fi
 
+if [ "$TEST" == "True" ]; then
     pushd /tmp/parsec
     ./target/debug/parsec -c e2e_tests/provider_cfg/mbed-crypto/config.toml &
     popd

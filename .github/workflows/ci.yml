@@ -40,7 +40,7 @@ jobs:
       - name: Run the container to execute the test script
         uses: ./.github/actions/ci_script
         with:
-          ci-flags: "build-test"       
+          ci-flags: "build-and-test"
 
   static-checks:
     name: Run static checks 
