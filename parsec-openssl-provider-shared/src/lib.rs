@@ -32,7 +32,7 @@ unsafe extern "C" fn OSSL_provider_init(
 
 openssl_errors::openssl_errors! {
     #[allow(clippy::empty_enum)]
-    library Error("parsec_openssl_provider_shared") {
+    pub library Error("parsec_openssl_provider_shared") {
         functions {
             PROVIDER_INIT("parsec_provider_init");
         }
