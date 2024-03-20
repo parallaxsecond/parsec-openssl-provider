@@ -11,6 +11,7 @@ Continuous Integration test script
 
 Usage: ./ci.sh --TEST
 where TEST can be one of:
+    --build
     --build-and-test
     --static-checks
 "
@@ -46,6 +47,9 @@ STATIC_CHECKS="False"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        --build )
+            BUILD="True"
+        ;;
         --build-and-test )
             BUILD="True"
             TEST="True"
