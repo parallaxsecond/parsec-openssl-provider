@@ -93,7 +93,7 @@ pub unsafe fn parsec_provider_provider_init(
 
 openssl_errors::openssl_errors! {
     #[allow(clippy::empty_enum)]
-    library Error("parsec_openssl_provider") {
+    pub library Error("parsec_openssl_provider") {
         functions {
             PROVIDER_TEARDOWN("parsec_provider_teardown");
             PROVIDER_GETTABLE_PARAMS("parsec_provider_gettable_params");
