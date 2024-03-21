@@ -40,6 +40,14 @@ macro_rules! ossl_algorithm {
             algorithm_description: $algorithm_description.as_ptr() as *const std::os::raw::c_char,
         }
     };
+    () => {
+        OSSL_ALGORITHM {
+            algorithm_names: std::ptr::null_mut(),
+            property_definition: std::ptr::null_mut(),
+            implementation: std::ptr::null_mut(),
+            algorithm_description: std::ptr::null_mut(),
+        }
+    };
 }
 
 #[macro_export]
