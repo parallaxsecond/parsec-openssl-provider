@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::keymgmt::PARSEC_PROVIDER_KEYMGMT;
+use crate::signature::PARSEC_PROVIDER_SIGNATURE;
+
 use parsec_openssl2::{
     locate_and_set_provider_status_param, locate_and_set_utf8_param, ossl_param, OPENSSL_ERROR,
     OPENSSL_SUCCESS, OSSL_PROVIDER,
@@ -110,6 +112,7 @@ pub unsafe extern "C" fn parsec_provider_query(
 
     match operation_id as u32 {
         OSSL_OP_KEYMGMT => PARSEC_PROVIDER_KEYMGMT.as_ptr(),
+        OSSL_OP_SIGNATURE => PARSEC_PROVIDER_SIGNATURE.as_ptr(),
         _ => std::ptr::null_mut(),
     }
 }
