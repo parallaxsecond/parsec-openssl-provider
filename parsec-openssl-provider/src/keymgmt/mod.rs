@@ -4,15 +4,13 @@
 use crate::openssl_binding::{
     OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_NEW,
 };
-use crate::ParsecProviderContext;
+use crate::{
+    ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
+    PARSEC_PROVIDER_RSA_NAME,
+};
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
 use std::sync::{Arc, Mutex};
-
-// Parameter names that Providers can define
-const PARSEC_PROVIDER_RSA_NAME: &[u8; 4] = b"RSA\0";
-const PARSEC_PROVIDER_DESCRIPTION_RSA: &[u8; 11] = b"Parsec RSA\0";
-const PARSEC_PROVIDER_DFLT_PROPERTIES: &[u8; 16] = b"provider=parsec\0";
 
 struct ParsecProviderKeyObject {
     _provctx: Arc<ParsecProviderContext>,

@@ -24,6 +24,11 @@ use provider::*;
 mod catch;
 use catch::r#catch;
 
+// Parameter names that Providers can define
+const PARSEC_PROVIDER_RSA_NAME: &[u8; 4] = b"RSA\0";
+const PARSEC_PROVIDER_DESCRIPTION_RSA: &[u8; 11] = b"Parsec RSA\0";
+const PARSEC_PROVIDER_DFLT_PROPERTIES: &[u8; 16] = b"provider=parsec\0";
+
 // The init function populates the dispatch table and returns a void pointer
 // to the provider context (which contains the parsec basic client).
 pub unsafe fn parsec_provider_provider_init(
