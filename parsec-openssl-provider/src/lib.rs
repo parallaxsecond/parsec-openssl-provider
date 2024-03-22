@@ -76,6 +76,9 @@ pub unsafe fn parsec_provider_provider_init(
     });
 
     if out.is_null() || provctx.is_null() {
+        log::error!(
+            "[Parsec Provider Init Error]: Neither out nor provctx parameters should be NULL"
+        );
         return Err(parsec_openssl2::Error::SysReturnedNull {
             inner: ErrorStack::get(),
         });
@@ -86,7 +89,7 @@ pub unsafe fn parsec_provider_provider_init(
     match ParsecProviderContext::new("parsec-tool".to_string()) {
         Err(e) => {
             *provctx = std::ptr::null_mut();
-            log::error!("[Provider Context Error]: {:?}", e);
+            log::error!("[Parsec Provider Init Error]: {:?}", e);
             return Err(parsec_openssl2::Error::SysReturnedNull {
                 inner: ErrorStack::get(),
             });
