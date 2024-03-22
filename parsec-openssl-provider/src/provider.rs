@@ -14,10 +14,13 @@ use parsec_client::BasicClient;
 use std::sync::Arc;
 
 use crate::openssl_binding::{
-    OSSL_ALGORITHM, OSSL_OP_KEYMGMT, OSSL_PARAM, OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR,
-    OSSL_PROV_PARAM_BUILDINFO, OSSL_PROV_PARAM_NAME, OSSL_PROV_PARAM_STATUS,
+    OSSL_ALGORITHM, OSSL_OP_KEYMGMT, OSSL_OP_SIGNATURE, OSSL_PARAM, OSSL_PARAM_INTEGER,
+    OSSL_PARAM_UTF8_PTR, OSSL_PROV_PARAM_BUILDINFO, OSSL_PROV_PARAM_NAME, OSSL_PROV_PARAM_STATUS,
     OSSL_PROV_PARAM_VERSION,
 };
+
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 // Parsec provider parameters
 pub const PARSEC_PROVIDER_NAME: &[u8; 24] = b"Parsec OpenSSL Provider\0";
@@ -102,6 +105,13 @@ pub type ProviderQueryPtr = unsafe extern "C" fn(
 // Function pointer of type OSSL_FUNC_PROVIDER_TEARDOWN
 pub type ProviderTeardownPtr = unsafe extern "C" fn(provctx: *const OSSL_PROVIDER);
 
+#[repr(i32)]
+#[derive(FromPrimitive, Clone, PartialEq, Eq)]
+enum ParsecProviderOperationId {
+    KeyMgmgt = OSSL_OP_KEYMGMT as i32,
+    Signature = OSSL_OP_SIGNATURE as i32,
+}
+
 // The null provider implementation currently doesn't supply any algorithms to the core
 pub unsafe extern "C" fn parsec_provider_query(
     _prov: *mut OSSL_PROVIDER,
@@ -110,10 +120,14 @@ pub unsafe extern "C" fn parsec_provider_query(
 ) -> *const OSSL_ALGORITHM {
     *no_cache = 0;
 
-    match operation_id as u32 {
-        OSSL_OP_KEYMGMT => PARSEC_PROVIDER_KEYMGMT.as_ptr(),
-        OSSL_OP_SIGNATURE => PARSEC_PROVIDER_SIGNATURE.as_ptr(),
-        _ => std::ptr::null_mut(),
+    let op_id = ParsecProviderOperationId::from_i32(operation_id);
+    if let Some(id) = op_id {
+        match id {
+            ParsecProviderOperationId::KeyMgmgt => PARSEC_PROVIDER_KEYMGMT.as_ptr(),
+            ParsecProviderOperationId::Signature => PARSEC_PROVIDER_SIGNATURE.as_ptr(),
+        }
+    } else {
+        std::ptr::null_mut()
     }
 }
 
