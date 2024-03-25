@@ -2,20 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 #![allow(clippy::missing_safety_doc)]
 
-#[allow(non_camel_case_types)]
-#[allow(non_upper_case_globals)]
-#[allow(non_snake_case)]
-#[allow(improper_ctypes)]
-// These are test bindings generated from the "evp.h" and "provider.h" header files which
-// provide interfaces for openssl clients.
-pub mod openssl_test_bindings {
-    include!(concat!(env!("OUT_DIR"), "/openssl_test_bindings.rs"));
-}
-
 // Needed to access as_ptr function for LibCtx
 pub use foreign_types_shared::ForeignType;
-pub use openssl_test_bindings::*;
 pub use parsec_openssl_provider::parsec_openssl2::openssl::{lib_ctx::LibCtx, provider::Provider};
+pub use parsec_openssl_provider::parsec_openssl2::openssl_binding::*;
 
 // These needs to be replaced with consts from the key management module
 pub const PARSEC_PROVIDER_RSA: &[u8; 4] = b"RSA\0";
