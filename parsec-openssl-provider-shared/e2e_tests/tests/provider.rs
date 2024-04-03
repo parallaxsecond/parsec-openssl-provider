@@ -1,9 +1,9 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
+use e2e_tests::*;
 use parsec_openssl_provider::parsec_openssl2::{openssl_bindings, ossl_param};
 use parsec_openssl_provider::PARSEC_PROVIDER_KEY_NAME;
-use parsec_openssl_provider_shared_test::*;
 use std::ffi::CStr;
 
 // Simple test to load a provider. Test fails if load_provider function reports error
