@@ -32,3 +32,5 @@ ENV PARSEC_SERVICE_ENDPOINT="unix:/tmp/parsec.sock"
 RUN git clone https://github.com/parallaxsecond/parsec.git --branch 1.3.0 \
     && cd parsec \
     && cargo build --features "mbed-crypto-provider,direct-authenticator"
+
+RUN cargo install parsec-tool
