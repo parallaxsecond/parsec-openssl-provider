@@ -81,6 +81,8 @@ if [ "$TEST" == "True" ]; then
 
     wait_for_service
 
+    parsec-tool create-rsa-key -s -b 2048 -k PARSEC_TEST_KEYNAME
+
     # Try loading the build parsec provider 
     PROVIDER_LOAD_RESULT=$(openssl list -providers -provider-path ./target/debug/ -provider libparsec_openssl_provider_shared)
     echo $PROVIDER_LOAD_RESULT
