@@ -114,6 +114,7 @@ openssl_errors::openssl_errors! {
             PROVIDER_KEYMGMT_SET_PARAMS("parsec_provider_kmgmt_set_params");
             PROVIDER_QUERY("parsec_provider_query");
             PROVIDER_TEARDOWN("parsec_provider_teardown");
+            PROVIDER_KEYMGMT_VALIDATE("parsec_provider_kmgmt_validate");
         }
 
         reasons {
