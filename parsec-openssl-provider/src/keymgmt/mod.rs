@@ -16,13 +16,13 @@ use parsec_openssl2::*;
 use std::sync::{Arc, Mutex};
 
 struct ParsecProviderKeyObject {
-    _provctx: Arc<ParsecProviderContext>,
+    provctx: Arc<ParsecProviderContext>,
     key_name: Mutex<Option<String>>,
 }
 
 fn kmgmt_keyobj_new(provctx: Arc<ParsecProviderContext>) -> Arc<ParsecProviderKeyObject> {
     Arc::new(ParsecProviderKeyObject {
-        _provctx: provctx.clone(),
+        provctx: provctx.clone(),
         key_name: None.into(),
     })
 }
@@ -198,10 +198,30 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_validate(
         Arc::increment_strong_count(keydata_ptr);
         let arc_keydata = Arc::from_raw(keydata_ptr);
         let key_name = arc_keydata.key_name.lock().unwrap();
-        if key_name.is_some() {
-            OPENSSL_SUCCESS
-        } else {
-            OPENSSL_ERROR
+        let result =
+            super::r#catch(
+                Some(|| super::Error::PROVIDER_KEYMGMT_VALIDATE),
+                || match &*key_name {
+                    Some(name) => {
+                        let keys = arc_keydata
+                            .provctx
+                            .get_client()
+                            .list_keys()
+                            .map_err(|_| "Failed to list Parsec Provider's Keys".to_string())?;
+
+                        if keys.iter().any(|kinfo| kinfo.name == name.as_str()) {
+                            Ok(OPENSSL_SUCCESS)
+                        } else {
+                            Err("Specified Key not found in the Parsec Provider".into())
+                        }
+                    }
+                    None => Err("keydata to validate failed: Key name not specified".into()),
+                },
+            );
+
+        match result {
+            Ok(result) => result,
+            Err(()) => OPENSSL_ERROR,
         }
     } else {
         OPENSSL_SUCCESS
