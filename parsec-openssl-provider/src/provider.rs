@@ -13,7 +13,7 @@ use parsec_client::error::Result as ClientResult;
 use parsec_client::BasicClient;
 use std::sync::Arc;
 
-use crate::openssl_binding::{
+use crate::openssl_bindings::{
     OSSL_ALGORITHM, OSSL_OP_KEYMGMT, OSSL_OP_SIGNATURE, OSSL_PARAM, OSSL_PARAM_INTEGER,
     OSSL_PARAM_UTF8_PTR, OSSL_PROV_PARAM_BUILDINFO, OSSL_PROV_PARAM_NAME, OSSL_PROV_PARAM_STATUS,
     OSSL_PROV_PARAM_VERSION,

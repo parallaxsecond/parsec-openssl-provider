@@ -1,7 +1,7 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::openssl_binding::OSSL_ALGORITHM;
+use crate::openssl_bindings::OSSL_ALGORITHM;
 use crate::OSSL_DISPATCH;
 use crate::{
     PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,

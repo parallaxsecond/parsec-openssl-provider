@@ -1,7 +1,7 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
-use parsec_openssl_provider::parsec_openssl2::{openssl_binding, ossl_param};
+use parsec_openssl_provider::parsec_openssl2::{openssl_bindings, ossl_param};
 use parsec_openssl_provider::PARSEC_PROVIDER_KEY_NAME;
 use parsec_openssl_provider_shared_test::*;
 use std::ffi::CStr;
@@ -64,27 +64,27 @@ fn test_parsec_provider_gettable_param() {
 
         // Checks if the returned structure contains OSSL_PROV_PARAM_NAME
         assert_ne!(
-            openssl_binding::OSSL_PARAM_locate(
+            openssl_bindings::OSSL_PARAM_locate(
                 gettable_params as _,
-                openssl_binding::OSSL_PROV_PARAM_NAME.as_ptr() as *const std::os::raw::c_char,
+                openssl_bindings::OSSL_PROV_PARAM_NAME.as_ptr() as *const std::os::raw::c_char,
             ),
             std::ptr::null_mut()
         );
 
         // Checks if the returned structure contains OSSL_PROV_PARAM_VERSION
         assert_ne!(
-            openssl_binding::OSSL_PARAM_locate(
+            openssl_bindings::OSSL_PARAM_locate(
                 gettable_params as _,
-                openssl_binding::OSSL_PROV_PARAM_VERSION.as_ptr() as *const std::os::raw::c_char,
+                openssl_bindings::OSSL_PROV_PARAM_VERSION.as_ptr() as *const std::os::raw::c_char,
             ),
             std::ptr::null_mut()
         );
 
         // Checks if the returned structure contains OSSL_PROV_PARAM_STATUS
         assert_ne!(
-            openssl_binding::OSSL_PARAM_locate(
+            openssl_bindings::OSSL_PARAM_locate(
                 gettable_params as _,
-                openssl_binding::OSSL_PROV_PARAM_STATUS.as_ptr() as *const std::os::raw::c_char,
+                openssl_bindings::OSSL_PROV_PARAM_STATUS.as_ptr() as *const std::os::raw::c_char,
             ),
             std::ptr::null_mut()
         );
@@ -108,17 +108,17 @@ fn test_parsec_provider_get_param() {
 
         // Construct the 3 parameters
         params[0] = OSSL_PARAM_construct_utf8_ptr(
-            openssl_binding::OSSL_PROV_PARAM_NAME.as_ptr() as _,
+            openssl_bindings::OSSL_PROV_PARAM_NAME.as_ptr() as _,
             &mut prov_name,
             0,
         );
         params[1] = OSSL_PARAM_construct_utf8_ptr(
-            openssl_binding::OSSL_PROV_PARAM_VERSION.as_ptr() as _,
+            openssl_bindings::OSSL_PROV_PARAM_VERSION.as_ptr() as _,
             &mut prov_version,
             0,
         );
         params[2] = OSSL_PARAM_construct_int(
-            openssl_binding::OSSL_PROV_PARAM_STATUS.as_ptr() as _,
+            openssl_bindings::OSSL_PROV_PARAM_STATUS.as_ptr() as _,
             &mut prov_status as *mut i32,
         );
 
