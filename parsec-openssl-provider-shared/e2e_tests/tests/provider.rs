@@ -9,7 +9,7 @@ use std::ffi::CStr;
 // Simple test to load a provider. Test fails if load_provider function reports error
 #[test]
 fn test_loading_parsec_provider() {
-    let provider_path = String::from("../target/debug");
+    let provider_path = String::from("../../target/debug");
     let provider_name = String::from("libparsec_openssl_provider_shared");
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
     let _provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
@@ -18,7 +18,7 @@ fn test_loading_parsec_provider() {
 // Fetch the provider name from the OSSL interface "OSSL_PROVIDER_get0_name"
 #[test]
 fn test_parsec_provider_name() {
-    let provider_path = String::from("../target/debug/");
+    let provider_path = String::from("../../target/debug/");
     let provider_name = String::from("libparsec_openssl_provider_shared");
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
     let provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
@@ -33,7 +33,7 @@ fn test_parsec_provider_name() {
 // Loads a keys from the provider and returns an EVP_PKEY object with the details.
 #[test]
 fn test_loading_keys() {
-    let provider_path = String::from("../target/debug/");
+    let provider_path = String::from("../../target/debug/");
     let provider_name = String::from("libparsec_openssl_provider_shared");
 
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
@@ -54,7 +54,7 @@ fn test_loading_keys() {
 // structure
 #[test]
 fn test_parsec_provider_gettable_param() {
-    let provider_path = String::from("../target/debug/");
+    let provider_path = String::from("../../target/debug/");
     let provider_name = String::from("libparsec_openssl_provider_shared");
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
     let provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
@@ -94,7 +94,7 @@ fn test_parsec_provider_gettable_param() {
 // Fetch the supported params from the parsec provider and compares if its as expected
 #[test]
 fn test_parsec_provider_get_param() {
-    let provider_path = String::from("../target/debug/");
+    let provider_path = String::from("../../target/debug/");
     let provider_name = String::from("libparsec_openssl_provider_shared");
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
     let provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
@@ -156,7 +156,7 @@ fn test_parsec_provider_get_param() {
 // a supported function
 #[test]
 fn test_provider_query_supported() {
-    let provider_path = String::from("../target/debug");
+    let provider_path = String::from("../../target/debug");
     let provider_name = String::from("libparsec_openssl_provider_shared");
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
     let provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
@@ -178,7 +178,7 @@ fn test_provider_query_supported() {
 // an unsupported function
 #[test]
 fn test_provider_query_unsupported() {
-    let provider_path = String::from("../target/debug");
+    let provider_path = String::from("../../target/debug");
     let provider_name = String::from("libparsec_openssl_provider_shared");
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
     let provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
