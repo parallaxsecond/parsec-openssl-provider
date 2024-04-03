@@ -3,7 +3,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 pub use openssl_sys::OSSL_PROVIDER;
-pub use parsec_openssl_sys2::openssl_binding;
+pub use parsec_openssl_sys2::openssl_bindings;
 pub mod types;
 
 pub use openssl;
@@ -86,15 +86,15 @@ macro_rules! ossl_param {
 pub unsafe fn locate_and_set_utf8_param(
     openssl_param: &[u8],
     provider_param: &[u8],
-    params: *mut openssl_binding::OSSL_PARAM,
+    params: *mut openssl_bindings::OSSL_PARAM,
 ) -> Result<(), Error> {
-    let ptr = openssl_returns_nonnull(openssl_binding::OSSL_PARAM_locate(
+    let ptr = openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
         params,
         openssl_param.as_ptr() as *const std::os::raw::c_char,
     ))?;
 
     // OpenSSL returns OPENSSL_SUCCESS
-    openssl_returns_1(openssl_binding::OSSL_PARAM_set_utf8_ptr(
+    openssl_returns_1(openssl_bindings::OSSL_PARAM_set_utf8_ptr(
         ptr,
         provider_param.as_ptr() as *const std::os::raw::c_char,
     ))?;
@@ -104,14 +104,14 @@ pub unsafe fn locate_and_set_utf8_param(
 // Finds the OpenSSL parameter "OSSL_PROV_PARAM_STATUS" in the parameter array "params" and sets it
 // to active status
 pub unsafe fn locate_and_set_provider_status_param(
-    params: *mut openssl_binding::OSSL_PARAM,
+    params: *mut openssl_bindings::OSSL_PARAM,
 ) -> Result<(), Error> {
-    let ptr = openssl_returns_nonnull(openssl_binding::OSSL_PARAM_locate(
+    let ptr = openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
         params,
-        openssl_binding::OSSL_PROV_PARAM_STATUS.as_ptr() as *const std::os::raw::c_char,
+        openssl_bindings::OSSL_PROV_PARAM_STATUS.as_ptr() as *const std::os::raw::c_char,
     ))?;
 
     // OpenSSL returns OPENSSL_SUCCESS
-    openssl_returns_1(openssl_binding::OSSL_PARAM_set_int(ptr, 1))?;
+    openssl_returns_1(openssl_bindings::OSSL_PARAM_set_int(ptr, 1))?;
     Ok(())
 }

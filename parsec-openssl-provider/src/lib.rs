@@ -7,13 +7,13 @@ use std::sync::Arc;
 pub use openssl_errors;
 pub use parsec_openssl2;
 
-use openssl_binding::{
+use openssl_bindings::{
     OSSL_CORE_HANDLE, OSSL_DISPATCH, OSSL_FUNC_PROVIDER_GETTABLE_PARAMS,
     OSSL_FUNC_PROVIDER_GET_PARAMS, OSSL_FUNC_PROVIDER_QUERY_OPERATION, OSSL_FUNC_PROVIDER_TEARDOWN,
 };
 use parsec_openssl2::openssl::error::ErrorStack;
 use parsec_openssl2::types::VOID_PTR;
-use parsec_openssl2::{openssl_binding, types};
+use parsec_openssl2::{openssl_bindings, types};
 
 mod keymgmt;
 mod signature;

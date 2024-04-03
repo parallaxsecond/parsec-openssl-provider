@@ -1,7 +1,7 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::openssl_binding::{
+use crate::openssl_bindings::{
     OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_IMPORT,
     OSSL_FUNC_KEYMGMT_IMPORT_TYPES, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
     OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM,
@@ -88,8 +88,8 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_set_params(
             Arc::increment_strong_count(keyobj);
             let arc_keyobj = Arc::from_raw(keyobj);
 
-            let param: openssl_binding::OSSL_PARAM =
-                *openssl_returns_nonnull(openssl_binding::OSSL_PARAM_locate(
+            let param: openssl_bindings::OSSL_PARAM =
+                *openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
                     params,
                     PARSEC_PROVIDER_KEY_NAME.as_ptr() as *const std::os::raw::c_char,
                 ))?;

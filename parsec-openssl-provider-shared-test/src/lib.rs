@@ -5,7 +5,7 @@
 // Needed to access as_ptr function for LibCtx
 pub use foreign_types_shared::ForeignType;
 pub use parsec_openssl_provider::parsec_openssl2::openssl::{lib_ctx::LibCtx, provider::Provider};
-pub use parsec_openssl_provider::parsec_openssl2::openssl_binding::*;
+pub use parsec_openssl_provider::parsec_openssl2::openssl_bindings::*;
 
 // These needs to be replaced with consts from the key management module
 pub const PARSEC_PROVIDER_RSA: &[u8; 4] = b"RSA\0";
