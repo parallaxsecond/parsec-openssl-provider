@@ -112,11 +112,12 @@ openssl_errors::openssl_errors! {
             PROVIDER_GETTABLE_PARAMS("parsec_provider_gettable_params");
             PROVIDER_GET_PARAMS("parsec_provider_get_params");
             PROVIDER_KEYMGMT_HAS("parsec_provider_kmgmt_has");
+            PROVIDER_KEYMGMT_IMPORT("parsec_provider_kmgmt_import");
             PROVIDER_KEYMGMT_MATCH("parsec_provider_kmgmt_match");
             PROVIDER_KEYMGMT_SET_PARAMS("parsec_provider_kmgmt_set_params");
+            PROVIDER_KEYMGMT_VALIDATE("parsec_provider_kmgmt_validate");
             PROVIDER_QUERY("parsec_provider_query");
             PROVIDER_TEARDOWN("parsec_provider_teardown");
-            PROVIDER_KEYMGMT_VALIDATE("parsec_provider_kmgmt_validate");
         }
 
         reasons {

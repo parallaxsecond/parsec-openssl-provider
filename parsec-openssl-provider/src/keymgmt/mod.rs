@@ -146,18 +146,51 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_has(
     }
 }
 
+/*
+should import data indicated by selection into keydata with values taken from the OSSL_PARAM array params
+*/
 pub unsafe extern "C" fn parsec_provider_kmgmt_import(
     key_data: VOID_PTR,
     selection: std::os::raw::c_int,
     params: *mut OSSL_PARAM,
 ) -> std::os::raw::c_int {
-    //TODO: Query the parsec service and get a list of keys, check if the requested import is for a known key and then
-    // set the parameter
     if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
-        return parsec_provider_kmgmt_set_params(key_data, params);
-    }
+        let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_IMPORT), || {
+            let keydata_ptr = key_data as *const ParsecProviderKeyObject;
+            Arc::increment_strong_count(keydata_ptr);
+            let arc_keydata = Arc::from_raw(keydata_ptr);
+            let param: openssl_bindings::OSSL_PARAM =
+                *openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+                    params,
+                    PARSEC_PROVIDER_KEY_NAME.as_ptr() as *const std::os::raw::c_char,
+                ))?;
 
-    OPENSSL_SUCCESS
+            let key_name = std::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                param.data as *mut u8,
+                param.data_size,
+            ));
+
+            let keys = arc_keydata
+                .provctx
+                .get_client()
+                .list_keys()
+                .map_err(|_| "Failed to list Parsec Provider's Keys".to_string())?;
+
+            if keys.iter().any(|kinfo| kinfo.name == key_name) {
+                Ok(OPENSSL_SUCCESS)
+            } else {
+                Err("Specified Key not found in the Parsec Provider".into())
+            }
+        });
+        match result {
+            // Right now, settable params are the same as the import types, so it's ok to use this
+            // function
+            Ok(_) => parsec_provider_kmgmt_set_params(key_data, params),
+            Err(()) => OPENSSL_ERROR,
+        }
+    } else {
+        OPENSSL_SUCCESS
+    }
 }
 
 /*
