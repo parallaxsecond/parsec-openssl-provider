@@ -27,6 +27,29 @@ fn kmgmt_keyobj_new(provctx: Arc<ParsecProviderContext>) -> Arc<ParsecProviderKe
     })
 }
 
+fn key_is_present(
+    keydata: Arc<ParsecProviderKeyObject>,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    let key_name = keydata.key_name.lock().unwrap();
+    match &*key_name {
+        Some(name) => {
+            let keys = keydata.provctx.client.list_keys();
+
+            match keys {
+                Ok(keys) => {
+                    if keys.iter().any(|kinfo| kinfo.name == name.as_str()) {
+                        Ok(OPENSSL_SUCCESS)
+                    } else {
+                        Err("Specified Key not found in the Parsec Provider".into())
+                    }
+                }
+                Err(_) => Err("Failed to list Parsec Provider's Keys".into()),
+            }
+        }
+        None => Err("Key name not specified".into()),
+    }
+}
+
 /*
 should create a provider side key object. The provider context provctx is passed and may be incorporated
 in the key object, but that is not mandatory.
@@ -197,11 +220,13 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_validate(
         let keydata_ptr = keydata as *const ParsecProviderKeyObject;
         Arc::increment_strong_count(keydata_ptr);
         let arc_keydata = Arc::from_raw(keydata_ptr);
-        let key_name = arc_keydata.key_name.lock().unwrap();
-        if key_name.is_some() {
-            OPENSSL_SUCCESS
-        } else {
-            OPENSSL_ERROR
+
+        let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_VALIDATE), || {
+            key_is_present(arc_keydata)
+        });
+        match result {
+            Ok(result) => result,
+            Err(()) => OPENSSL_ERROR,
         }
     } else {
         OPENSSL_SUCCESS
