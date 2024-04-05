@@ -119,7 +119,6 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_has(
     keydata: VOID_PTR,
     selection: std::os::raw::c_int,
 ) -> std::os::raw::c_int {
-
     let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_HAS), || {
         if keydata.is_null() {
             return Err("keydata pointer should not be NULL.".into());
@@ -268,3 +267,64 @@ pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 2] = [
     ),
     ossl_algorithm!(),
 ];
+
+#[test]
+fn test_kmgmt_has() {
+    use crate::openssl_bindings::OSSL_KEYMGMT_SELECT_PRIVATE_KEY;
+    use crate::parsec_provider_provider_init;
+
+    let out: *const OSSL_DISPATCH = std::ptr::null();
+    let mut provctx: types::VOID_PTR = std::ptr::null_mut();
+
+    // Initialize the provider
+    let result: Result<(), parsec_openssl2::Error> = unsafe {
+        parsec_provider_provider_init(
+            std::ptr::null(),
+            std::ptr::null(),
+            &out as *const _ as *mut _,
+            &mut provctx as *mut VOID_PTR,
+        )
+    };
+    assert!(result.is_ok());
+
+    // Test parsec_provider_kmgmt_has when keyobj is null. Selection should not matter in this case
+    let selec_w_null = unsafe {
+        parsec_provider_kmgmt_has(
+            std::ptr::null_mut(),
+            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
+        )
+    };
+    assert_eq!(selec_w_null, OPENSSL_ERROR);
+
+    let keyobj = unsafe { parsec_provider_kmgmt_new(provctx) };
+    /* Test parsec_provider_kmgmt_has when the name parameter in keyobj has not been set and the correct selection is
+    used */
+    let selec_no_init =
+        unsafe { parsec_provider_kmgmt_has(keyobj, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32) };
+    assert_eq!(selec_no_init, OPENSSL_ERROR);
+
+    /* Test parsec_provider_kmgmt_has when the name parameter in keyobj has not been set but a superfluous selection
+    is used */
+    let no_selec_no_init =
+        unsafe { parsec_provider_kmgmt_has(keyobj, OSSL_KEYMGMT_SELECT_PRIVATE_KEY as i32) };
+    assert_eq!(no_selec_no_init, OPENSSL_SUCCESS);
+
+    // Set the key data with the correct name
+    let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let mut params = [
+        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
+        ossl_param!(),
+    ];
+
+    let set_params_res = unsafe { parsec_provider_kmgmt_set_params(keyobj, &mut params as _) };
+    assert_eq!(set_params_res, OPENSSL_SUCCESS);
+
+    // Check parsec_provider_kmgmt_has confirms that keyobj now has the correct data
+    let selec_init =
+        unsafe { parsec_provider_kmgmt_has(keyobj, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32) };
+    assert_eq!(selec_init, OPENSSL_SUCCESS);
+
+    unsafe {
+        parsec_provider_kmgmt_free(keyobj);
+    }
+}
