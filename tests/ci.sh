@@ -9,11 +9,13 @@ usage () {
     printf "
 Continuous Integration test script
 
-Usage: ./ci.sh --TEST
+Usage: ./ci.sh --TEST --OPTION
 where TEST can be one of:
     --build
     --build-and-test
     --static-checks
+and OPTION one of:
+    --create-keys
 "
 }
 
@@ -44,6 +46,7 @@ rustup update
 BUILD="False"
 TEST="False"
 STATIC_CHECKS="False"
+CREATE_KEYS="False"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -56,6 +59,9 @@ while [ "$#" -gt 0 ]; do
         ;;
         --static-checks )
             STATIC_CHECKS="True"
+        ;;
+        --create-keys )
+            CREATE_KEYS="True"
         ;;
         *)
             error_msg "Unknown argument: $1"
@@ -81,8 +87,9 @@ if [ "$TEST" == "True" ]; then
 
     wait_for_service
 
-    parsec-tool create-rsa-key -s -b 2048 -k PARSEC_TEST_KEYNAME
-
+    if [ "$CREATE_KEYS" == "True" ]; then
+        parsec-tool create-rsa-key -s -b 2048 -k PARSEC_TEST_KEYNAME
+    fi
     # Try loading the build parsec provider 
     PROVIDER_LOAD_RESULT=$(openssl list -providers -provider-path ./target/debug/ -provider libparsec_openssl_provider_shared)
     echo $PROVIDER_LOAD_RESULT
