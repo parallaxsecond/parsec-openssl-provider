@@ -37,7 +37,7 @@ fn test_loading_keys() {
     let provider_name = String::from("libparsec_openssl_provider_shared");
 
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
-    let provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
+    let _provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
 
     // Create a key beforehand using the parsec-tool and then run the test.
     let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
