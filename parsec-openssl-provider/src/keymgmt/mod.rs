@@ -348,3 +348,66 @@ fn test_kmgmt_has() {
         parsec_provider_kmgmt_free(keyobj);
     }
 }
+
+#[test]
+fn test_kmgmt_validate() {
+    use crate::parsec_provider_provider_init;
+
+    let out: *const OSSL_DISPATCH = std::ptr::null();
+    let mut provctx: types::VOID_PTR = std::ptr::null_mut();
+
+    // Initialize the provider
+    let result: Result<(), parsec_openssl2::Error> = unsafe {
+        parsec_provider_provider_init(
+            std::ptr::null(),
+            std::ptr::null(),
+            &out as *const _ as *mut _,
+            &mut provctx as *mut VOID_PTR,
+        )
+    };
+    assert!(result.is_ok());
+
+    let keyctx = unsafe { parsec_provider_kmgmt_new(provctx) };
+
+    // Check that validate fails with "bad" data
+    let bad_key_name = "BAD-NAME".to_string();
+    let mut bad_params = [
+        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, bad_key_name),
+        ossl_param!(),
+    ];
+
+    let set_params_res = unsafe { parsec_provider_kmgmt_set_params(keyctx, &mut bad_params as _) };
+    assert_eq!(set_params_res, OPENSSL_SUCCESS);
+
+    let result = unsafe {
+        parsec_provider_kmgmt_validate(
+            keyctx as VOID_PTR,
+            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
+            0,
+        )
+    };
+    assert_eq!(result, OPENSSL_ERROR);
+
+    // Check that validate succeeds with "good" data
+    let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let mut params = [
+        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
+        ossl_param!(),
+    ];
+
+    let set_params_res = unsafe { parsec_provider_kmgmt_set_params(keyctx, &mut params as _) };
+    assert_eq!(set_params_res, OPENSSL_SUCCESS);
+
+    let result = unsafe {
+        parsec_provider_kmgmt_validate(
+            keyctx as VOID_PTR,
+            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
+            0,
+        )
+    };
+    assert_eq!(result, OPENSSL_SUCCESS);
+
+    unsafe {
+        parsec_provider_kmgmt_free(keyctx);
+    }
+}
