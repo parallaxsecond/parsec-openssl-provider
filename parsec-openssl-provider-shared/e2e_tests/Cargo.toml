@@ -14,6 +14,8 @@ publish = false
 [dependencies]
 foreign-types-shared = "0.1.1"
 parsec-openssl-provider = { path ="../../parsec-openssl-provider" }
+parsec-client = "0.16.0"
+sha2 = "0.10.8"
 
 [build-dependencies]
 pkg-config = "0.3.18"
