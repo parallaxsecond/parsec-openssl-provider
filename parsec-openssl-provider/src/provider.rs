@@ -40,7 +40,7 @@ const PARSEC_PROVIDER_PARAM_TYPES: [OSSL_PARAM; 5] = [
 ];
 
 pub struct ParsecProviderContext {
-    pub client: BasicClient,
+    client: BasicClient,
 }
 
 impl ParsecProviderContext {
