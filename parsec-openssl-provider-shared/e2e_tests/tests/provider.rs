@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use e2e_tests::*;
-use parsec_openssl_provider::parsec_openssl2::{openssl_bindings, ossl_param};
+use parsec_openssl_provider::parsec_openssl2::{
+    openssl_bindings, openssl_returns_1, openssl_returns_nonnull, openssl_returns_nonnull_const,
+    ossl_param,
+};
 use parsec_openssl_provider::PARSEC_PROVIDER_KEY_NAME;
 use std::ffi::CStr;
 
@@ -63,31 +66,25 @@ fn test_parsec_provider_gettable_param() {
             OSSL_PROVIDER_gettable_params(provider.as_ptr() as *const ossl_provider_st);
 
         // Checks if the returned structure contains OSSL_PROV_PARAM_NAME
-        assert_ne!(
-            openssl_bindings::OSSL_PARAM_locate(
-                gettable_params as _,
-                openssl_bindings::OSSL_PROV_PARAM_NAME.as_ptr() as *const std::os::raw::c_char,
-            ),
-            std::ptr::null_mut()
-        );
+        openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+            gettable_params as _,
+            openssl_bindings::OSSL_PROV_PARAM_NAME.as_ptr() as *const std::os::raw::c_char,
+        ))
+        .unwrap();
 
         // Checks if the returned structure contains OSSL_PROV_PARAM_VERSION
-        assert_ne!(
-            openssl_bindings::OSSL_PARAM_locate(
-                gettable_params as _,
-                openssl_bindings::OSSL_PROV_PARAM_VERSION.as_ptr() as *const std::os::raw::c_char,
-            ),
-            std::ptr::null_mut()
-        );
+        openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+            gettable_params as _,
+            openssl_bindings::OSSL_PROV_PARAM_VERSION.as_ptr() as *const std::os::raw::c_char,
+        ))
+        .unwrap();
 
         // Checks if the returned structure contains OSSL_PROV_PARAM_STATUS
-        assert_ne!(
-            openssl_bindings::OSSL_PARAM_locate(
-                gettable_params as _,
-                openssl_bindings::OSSL_PROV_PARAM_STATUS.as_ptr() as *const std::os::raw::c_char,
-            ),
-            std::ptr::null_mut()
-        );
+        openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+            gettable_params as _,
+            openssl_bindings::OSSL_PROV_PARAM_STATUS.as_ptr() as *const std::os::raw::c_char,
+        ))
+        .unwrap();
     }
 }
 
@@ -128,18 +125,16 @@ fn test_parsec_provider_get_param() {
         assert_eq!(OSSL_PARAM_modified(&params[2] as _), 0);
 
         // Fetch the providers
-        assert_eq!(
-            OSSL_PROVIDER_get_params(
-                provider.as_ptr() as *const ossl_provider_st,
-                params.as_ptr() as *mut OSSL_PARAM,
-            ),
-            1
-        );
+        openssl_returns_1(OSSL_PROVIDER_get_params(
+            provider.as_ptr() as *const ossl_provider_st,
+            params.as_ptr() as *mut OSSL_PARAM,
+        ))
+        .unwrap();
 
         // Ensure the structure is populated by the provider
-        assert_eq!(OSSL_PARAM_modified(&params as _), 1);
-        assert_eq!(OSSL_PARAM_modified(&params[1] as _), 1);
-        assert_eq!(OSSL_PARAM_modified(&params[2] as _), 1);
+        openssl_returns_1(OSSL_PARAM_modified(&params as _)).unwrap();
+        openssl_returns_1(OSSL_PARAM_modified(&params[1] as _)).unwrap();
+        openssl_returns_1(OSSL_PARAM_modified(&params[2] as _)).unwrap();
 
         // Verify the returned provider parameters
         let prov_name = CStr::from_ptr(prov_name);
@@ -163,14 +158,12 @@ fn test_provider_query_supported() {
 
     let mut no_cache: i32 = 0;
     unsafe {
-        assert_ne!(
-            OSSL_PROVIDER_query_operation(
-                provider.as_ptr() as _,
-                OSSL_OP_KEYMGMT.try_into().unwrap(),
-                &mut no_cache as _,
-            ),
-            std::ptr::null_mut()
-        );
+        openssl_returns_nonnull_const(OSSL_PROVIDER_query_operation(
+            provider.as_ptr() as _,
+            OSSL_OP_KEYMGMT.try_into().unwrap(),
+            &mut no_cache as _,
+        ))
+        .unwrap();
     }
 }
 
