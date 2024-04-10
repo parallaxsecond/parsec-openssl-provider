@@ -41,8 +41,6 @@ if [[ ! -z ${RUST_TOOLCHAIN_VERSION:+x} ]]; then
 	rustup override set ${RUST_TOOLCHAIN_VERSION}
 fi
 
-rustup update
-
 BUILD="False"
 TEST="False"
 STATIC_CHECKS="False"
@@ -69,6 +67,8 @@ while [ "$#" -gt 0 ]; do
     esac
     shift
 done
+
+rustup update
 
 if [ "$BUILD" == "True" ]; then
     echo "OpenSSL version being used:"
