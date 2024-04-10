@@ -291,7 +291,7 @@ pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 2] = [
 #[test]
 fn test_kmgmt_has() {
     use crate::openssl_bindings::OSSL_KEYMGMT_SELECT_PRIVATE_KEY;
-    use crate::parsec_provider_provider_init;
+    use crate::{parsec_provider_provider_init, parsec_provider_teardown};
 
     let out: *const OSSL_DISPATCH = std::ptr::null();
     let mut provctx: types::VOID_PTR = std::ptr::null_mut();
@@ -346,12 +346,13 @@ fn test_kmgmt_has() {
 
     unsafe {
         parsec_provider_kmgmt_free(keyobj);
+        parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
     }
 }
 
 #[test]
 fn test_kmgmt_validate() {
-    use crate::parsec_provider_provider_init;
+    use crate::{parsec_provider_provider_init, parsec_provider_teardown};
 
     let out: *const OSSL_DISPATCH = std::ptr::null();
     let mut provctx: types::VOID_PTR = std::ptr::null_mut();
@@ -409,5 +410,6 @@ fn test_kmgmt_validate() {
 
     unsafe {
         parsec_provider_kmgmt_free(keyctx);
+        parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
     }
 }

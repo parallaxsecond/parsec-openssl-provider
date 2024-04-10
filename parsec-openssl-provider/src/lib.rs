@@ -126,6 +126,8 @@ openssl_errors::openssl_errors! {
 /// Assumes a "PARSEC_TEST_KEYNAME" key has been loaded out of band through the parsec-tool
 #[test]
 fn test_provider_init() {
+    use crate::parsec_provider_teardown;
+    use parsec_openssl2::OSSL_PROVIDER;
     let handle: *const OSSL_CORE_HANDLE = std::ptr::null();
     let in_: *const OSSL_DISPATCH = std::ptr::null();
     let out: *const OSSL_DISPATCH = std::ptr::null();
@@ -144,10 +146,7 @@ fn test_provider_init() {
     // Get the ParsecProviderContext
     let arc_prov_ctx = provctx as *mut ParsecProviderContext;
     assert!(result.is_ok());
-    let prov_context: Arc<ParsecProviderContext> = unsafe {
-        Arc::increment_strong_count(arc_prov_ctx);
-        Arc::from_raw(arc_prov_ctx)
-    };
+    let prov_context: Arc<ParsecProviderContext> = unsafe { Arc::from_raw(arc_prov_ctx) };
 
     // List the existing keys through the parsec client
     let keys = prov_context.get_client().list_keys().unwrap();
@@ -156,4 +155,8 @@ fn test_provider_init() {
 
     // Find the pre-generated key.
     assert!(keys.iter().any(|x| x.name == "PARSEC_TEST_KEYNAME"));
+
+    unsafe {
+        parsec_provider_teardown(Arc::into_raw(prov_context) as *const OSSL_PROVIDER);
+    }
 }
