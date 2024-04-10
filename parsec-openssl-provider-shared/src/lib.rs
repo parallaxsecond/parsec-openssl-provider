@@ -1,5 +1,6 @@
 // Copyright 2023 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
+#![deny(warnings)]
 
 use parsec_openssl_provider::{openssl_errors, parsec_provider_provider_init};
 

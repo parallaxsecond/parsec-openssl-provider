@@ -1,6 +1,7 @@
 // Copyright 2023 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 #![allow(clippy::missing_safety_doc)]
+#![deny(warnings)]
 
 pub use openssl_sys::OSSL_PROVIDER;
 pub use parsec_openssl_sys2::openssl_bindings;
