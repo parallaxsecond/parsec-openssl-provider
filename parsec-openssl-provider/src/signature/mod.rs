@@ -1,8 +1,10 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::keymgmt::ParsecProviderKeyObject;
 use crate::openssl_bindings::{
     OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_NEWCTX,
+    OSSL_FUNC_SIGNATURE_SIGN_INIT, OSSL_PARAM,
 };
 use crate::{
     PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
@@ -11,18 +13,21 @@ use crate::{
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 struct ParsecProviderSignatureContext {
     /* The key object is set in the signature context by calling OSSL_FUNC_signature_sign_init().
     Before calling OSSL_FUNC_signature_sign_init(), the key object itself should have been set up
     and initialized via keymgmt function calls.
     */
+    keyobj: Mutex<Option<Arc<ParsecProviderKeyObject>>>,
 }
 
 impl ParsecProviderSignatureContext {
     pub fn new() -> Self {
-        ParsecProviderSignatureContext {}
+        ParsecProviderSignatureContext {
+            keyobj: Mutex::new(None),
+        }
     }
 }
 
@@ -59,17 +64,59 @@ pub unsafe extern "C" fn parsec_provider_signature_freectx(ctx: VOID_PTR) {
     // When arc_ctx is dropped, the reference count is decremented and the memory is freed
 }
 
+/*
+Initialises a context for signing given a provider side signature context in the ctx parameter, and a pointer to a
+provider key object in the provkey parameter. The params, if not NULL, should be set on the context in a manner similar
+to using OSSL_FUNC_signature_set_ctx_params(). The key object should have been previously generated, loaded or imported
+into the provider using the key management (OSSL_OP_KEYMGMT) operation.
+*/
+unsafe extern "C" fn parsec_provider_signature_sign_init(
+    ctx: VOID_PTR,
+    provkey: VOID_PTR,
+    _params: *const OSSL_PARAM,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_SIGNATURE_SIGN_INIT), || {
+        if ctx.is_null() || provkey.is_null() {
+            return Err("Neither ctx nor provkey pointers should be NULL.".into());
+        }
+        let sig_ctx_ptr = ctx as *const ParsecProviderSignatureContext;
+        Arc::increment_strong_count(sig_ctx_ptr);
+        let arc_sig_ctx = Arc::from_raw(sig_ctx_ptr);
+
+        let provkey_ptr = provkey as *const ParsecProviderKeyObject;
+        Arc::increment_strong_count(provkey_ptr);
+        let arc_provkey = Arc::from_raw(provkey_ptr);
+
+        *(arc_sig_ctx.keyobj.lock().unwrap()) = Some(arc_provkey.clone());
+        Ok(OPENSSL_SUCCESS)
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
 pub type SignatureNewCtxPtr =
     unsafe extern "C" fn(VOID_PTR, *const std::os::raw::c_char) -> VOID_PTR;
 pub type SignatureFreeCtxPtr = unsafe extern "C" fn(VOID_PTR);
+pub type SignatureSignInitPtr =
+    unsafe extern "C" fn(VOID_PTR, VOID_PTR, *const OSSL_PARAM) -> std::os::raw::c_int;
 
 const OSSL_FUNC_SIGNATURE_NEWCTX_PTR: SignatureNewCtxPtr = parsec_provider_signature_newctx;
 const OSSL_FUNC_SIGNATURE_FREECTX_PTR: SignatureFreeCtxPtr = parsec_provider_signature_freectx;
+const OSSL_FUNC_SIGNATURE_SIGN_INIT_PTR: SignatureSignInitPtr = parsec_provider_signature_sign_init;
 
 const PARSEC_PROVIDER_ECDSA_SIGN_IMPL: [OSSL_DISPATCH; 1] = [ossl_dispatch!()];
-const PARSEC_PROVIDER_RSA_SIGN_IMPL: [OSSL_DISPATCH; 3] = [
+const PARSEC_PROVIDER_RSA_SIGN_IMPL: [OSSL_DISPATCH; 4] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_FREECTX_PTR) },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_SIGN_INIT,
+            OSSL_FUNC_SIGNATURE_SIGN_INIT_PTR
+        )
+    },
     ossl_dispatch!(),
 ];
 
