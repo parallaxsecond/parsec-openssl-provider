@@ -119,7 +119,6 @@ fn test_signing_ecdsa() {
     );
 }
 
-#[ignore]
 #[test]
 fn test_signing_rsa() {
     // Create a key beforehand using the parsec-tool and then run the test.
