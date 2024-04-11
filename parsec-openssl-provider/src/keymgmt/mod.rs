@@ -714,3 +714,50 @@ fn test_kmgmt_import() {
         parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
     }
 }
+
+#[test]
+fn test_kmgmt_dup() {
+    use crate::{parsec_provider_provider_init, parsec_provider_teardown};
+
+    let out: *const OSSL_DISPATCH = std::ptr::null();
+    let mut provctx: types::VOID_PTR = std::ptr::null_mut();
+
+    // Initialize the provider
+    let result: Result<(), parsec_openssl2::Error> = unsafe {
+        parsec_provider_provider_init(
+            std::ptr::null(),
+            std::ptr::null(),
+            &out as *const _ as *mut _,
+            &mut provctx as *mut VOID_PTR,
+        )
+    };
+    assert!(result.is_ok());
+
+    let keyobj = unsafe { parsec_provider_kmgmt_new(provctx) };
+
+    let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let mut params = [
+        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
+        ossl_param!(),
+    ];
+    let set_params_res = unsafe { parsec_provider_kmgmt_set_params(keyobj, &mut params as _) };
+    assert_eq!(set_params_res, OPENSSL_SUCCESS);
+
+    let duplicated =
+        unsafe { parsec_provider_keymgmt_dup(keyobj, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32) };
+
+    let duplicated_ptr = duplicated as *const ParsecProviderKeyObject;
+    unsafe {
+        Arc::increment_strong_count(duplicated_ptr);
+        let arc_duplicated = Arc::from_raw(duplicated_ptr);
+        let duplicated_key_name = arc_duplicated.key_name.lock().unwrap();
+
+        assert_eq!(*duplicated_key_name, Some(my_key_name))
+    }
+
+    unsafe {
+        parsec_provider_kmgmt_free(keyobj);
+        parsec_provider_kmgmt_free(duplicated);
+        parsec_provider_teardown(provctx as _);
+    }
+}
