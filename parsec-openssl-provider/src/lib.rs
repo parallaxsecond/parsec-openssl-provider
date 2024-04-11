@@ -117,6 +117,7 @@ openssl_errors::openssl_errors! {
             PROVIDER_KEYMGMT_SET_PARAMS("parsec_provider_kmgmt_set_params");
             PROVIDER_KEYMGMT_VALIDATE("parsec_provider_kmgmt_validate");
             PROVIDER_QUERY("parsec_provider_query");
+            PROVIDER_SIGNATURE_SIGN_INIT("parsec_provider_signature_sign_init");
             PROVIDER_TEARDOWN("parsec_provider_teardown");
         }
 

@@ -16,7 +16,7 @@ use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
 use std::sync::{Arc, Mutex};
 
-struct ParsecProviderKeyObject {
+pub struct ParsecProviderKeyObject {
     provctx: Arc<ParsecProviderContext>,
     key_name: Mutex<Option<String>>,
 }
