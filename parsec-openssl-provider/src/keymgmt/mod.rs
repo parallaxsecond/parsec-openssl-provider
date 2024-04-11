@@ -14,7 +14,7 @@ use crate::{
 };
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 pub struct ParsecProviderKeyObject {
     provctx: Arc<ParsecProviderContext>,
@@ -37,6 +37,14 @@ impl ParsecProviderKeyObject {
             provctx: provctx.clone(),
             key_name: None.into(),
         }
+    }
+
+    pub fn get_provctx(&self) -> Arc<ParsecProviderContext> {
+        self.provctx.clone()
+    }
+
+    pub fn get_key_name(&self) -> MutexGuard<'_, Option<String>> {
+        self.key_name.lock().unwrap()
     }
 }
 
