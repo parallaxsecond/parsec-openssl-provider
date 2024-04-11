@@ -447,7 +447,7 @@ fn test_kmgmt_has() {
     assert_eq!(no_selec_no_init, OPENSSL_SUCCESS);
 
     // Set the key data with the correct name
-    let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let my_key_name = "PARSEC_TEST_RSA_KEY".to_string();
     let mut params = [
         ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
         ossl_param!(),
@@ -507,7 +507,7 @@ fn test_kmgmt_validate() {
     assert_eq!(result, OPENSSL_ERROR);
 
     // Check that validate succeeds with "good" data
-    let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let my_key_name = "PARSEC_TEST_RSA_KEY".to_string();
     let mut params = [
         ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
         ossl_param!(),
@@ -694,7 +694,7 @@ fn test_kmgmt_import() {
     assert_eq!(bad_import_res, OPENSSL_ERROR);
 
     // Check that import succeeds with "good" data
-    let good_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let good_key_name = "PARSEC_TEST_RSA_KEY".to_string();
     let mut good_params = [
         ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, good_key_name),
         ossl_param!(),
@@ -735,7 +735,7 @@ fn test_kmgmt_dup() {
 
     let keyobj = unsafe { parsec_provider_kmgmt_new(provctx) };
 
-    let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let my_key_name = "PARSEC_TEST_RSA_KEY".to_string();
     let mut params = [
         ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
         ossl_param!(),
