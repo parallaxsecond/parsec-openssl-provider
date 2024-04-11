@@ -126,7 +126,7 @@ openssl_errors::openssl_errors! {
     }
 }
 
-/// Assumes a "PARSEC_TEST_KEYNAME" key has been loaded out of band through the parsec-tool
+/// Assumes a "PARSEC_TEST_RSA_KEY" key has been loaded out of band through the parsec-tool
 #[test]
 fn test_provider_init() {
     use crate::parsec_provider_teardown;
@@ -157,7 +157,7 @@ fn test_provider_init() {
     assert_ne!(keys.len(), 0);
 
     // Find the pre-generated key.
-    assert!(keys.iter().any(|x| x.name == "PARSEC_TEST_KEYNAME"));
+    assert!(keys.iter().any(|x| x.name == "PARSEC_TEST_RSA_KEY"));
 
     unsafe {
         parsec_provider_teardown(Arc::into_raw(prov_context) as *const OSSL_PROVIDER);

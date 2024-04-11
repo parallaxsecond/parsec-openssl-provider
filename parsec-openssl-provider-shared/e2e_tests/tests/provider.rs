@@ -40,7 +40,7 @@ fn test_loading_keys() {
     let _provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
 
     // Create a key beforehand using the parsec-tool and then run the test.
-    let my_key_name = "PARSEC_TEST_KEYNAME".to_string();
+    let my_key_name = "PARSEC_TEST_RSA_KEY".to_string();
     let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name);
     unsafe {
         let mut parsec_pkey: *mut EVP_PKEY = std::ptr::null_mut();
