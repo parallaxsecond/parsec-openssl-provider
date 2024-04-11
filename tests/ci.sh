@@ -90,7 +90,7 @@ if [ "$TEST" == "True" ]; then
     if [ "$CREATE_KEYS" == "True" ]; then
         parsec-tool create-rsa-key -s -b 2048 -k PARSEC_TEST_KEYNAME
     fi
-    # Try loading the build parsec provider 
+    # Try loading the built parsec provider 
     PROVIDER_LOAD_RESULT=$(openssl list -providers -provider-path ./target/debug/ -provider libparsec_openssl_provider_shared)
     echo $PROVIDER_LOAD_RESULT
 
@@ -111,11 +111,17 @@ if [ "$TEST" == "True" ]; then
     cargo test
     popd
 
+    # Generate the certificates and keys needed for the TLS handshake tests
+    pushd tests
+    ./setup_tls.sh
+    popd
+
     # The parsec-openssl-provider-shared/e2e_tests/src/lib.rs contains some unit tests from the generated
     # test bindings from bindgen. So run only the integration tests in the test crate. 
     pushd parsec-openssl-provider-shared/e2e_tests/
     cargo test --test '*' -- --nocapture
     popd
+
 fi
 
 if [ "$STATIC_CHECKS" == "True" ]; then
