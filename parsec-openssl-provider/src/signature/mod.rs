@@ -88,3 +88,32 @@ pub const PARSEC_PROVIDER_SIGNATURE: [OSSL_ALGORITHM; 3] = [
     ),
     ossl_algorithm!(),
 ];
+
+#[test]
+fn test_sign_newctx() {
+    use crate::{parsec_provider_provider_init, parsec_provider_teardown};
+
+    let out: *const OSSL_DISPATCH = std::ptr::null();
+    let mut provctx: types::VOID_PTR = std::ptr::null_mut();
+
+    // Initialize the provider
+    let result: Result<(), parsec_openssl2::Error> = unsafe {
+        parsec_provider_provider_init(
+            std::ptr::null(),
+            std::ptr::null(),
+            &out as *const _ as *mut _,
+            &mut provctx as *mut VOID_PTR,
+        )
+    };
+    assert!(result.is_ok());
+    assert_ne!(provctx, std::ptr::null_mut());
+    let s = String::from("");
+
+    let sig_ctx = unsafe { parsec_provider_signature_newctx(provctx, s.as_ptr() as _) };
+    assert_ne!(sig_ctx, std::ptr::null_mut());
+
+    unsafe {
+        parsec_provider_signature_freectx(sig_ctx);
+        parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
+    }
+}
