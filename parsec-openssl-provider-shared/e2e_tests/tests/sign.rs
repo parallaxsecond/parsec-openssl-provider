@@ -99,7 +99,6 @@ fn sign_verify(
     Ok(())
 }
 
-#[ignore]
 #[test]
 fn test_signing_ecdsa() {
     // Create a key beforehand using the parsec-tool and then run the test.
