@@ -31,11 +31,13 @@ impl Clone for ParsecProviderKeyObject {
     }
 }
 
-fn kmgmt_keyobj_new(provctx: Arc<ParsecProviderContext>) -> Arc<ParsecProviderKeyObject> {
-    Arc::new(ParsecProviderKeyObject {
-        provctx: provctx.clone(),
-        key_name: None.into(),
-    })
+impl ParsecProviderKeyObject {
+    pub fn new(provctx: Arc<ParsecProviderContext>) -> Self {
+        ParsecProviderKeyObject {
+            provctx: provctx.clone(),
+            key_name: None.into(),
+        }
+    }
 }
 
 /*
@@ -50,7 +52,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_new(provctx: VOID_PTR) -> VOID_PT
     Arc::increment_strong_count(ctx);
     let context = Arc::from_raw(ctx);
 
-    Arc::into_raw(kmgmt_keyobj_new(context)) as VOID_PTR
+    Arc::into_raw(Arc::new(ParsecProviderKeyObject::new(context))) as VOID_PTR
 }
 
 // should free the passed keydata
