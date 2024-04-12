@@ -10,6 +10,7 @@ use parsec_openssl_provider::parsec_openssl2::openssl_returns_1;
 
 // These needs to be replaced with consts from the key management module
 pub const PARSEC_PROVIDER_RSA: &[u8; 4] = b"RSA\0";
+pub const PARSEC_PROVIDER_ECDSA: &[u8; 6] = b"ECDSA\0";
 pub const PARSEC_PROVIDER_PROPERTY: &[u8; 16] = b"provider=parsec\0";
 
 // Loads a provider into the given library context
@@ -20,10 +21,15 @@ pub fn load_provider(lib_ctx: &LibCtx, provider_name: &str, provider_path: Strin
 
 // Loads a key using the given library context with loaded provider. The param should contain the necessary
 // parameters based on the provider that we are loading.
-pub unsafe fn load_key(lib_ctx: &LibCtx, param: *mut OSSL_PARAM, parsec_pkey: *mut *mut EVP_PKEY) {
+pub unsafe fn load_key(
+    lib_ctx: &LibCtx,
+    param: *mut OSSL_PARAM,
+    parsec_pkey: *mut *mut EVP_PKEY,
+    key_type: &[u8],
+) {
     let evp_ctx: *mut EVP_PKEY_CTX = EVP_PKEY_CTX_new_from_name(
         lib_ctx.as_ptr() as *mut ossl_lib_ctx_st,
-        PARSEC_PROVIDER_RSA.as_ptr() as *const ::std::os::raw::c_char,
+        key_type.as_ptr() as *const ::std::os::raw::c_char,
         PARSEC_PROVIDER_PROPERTY.as_ptr() as *const ::std::os::raw::c_char,
     );
     assert_ne!(evp_ctx, std::ptr::null_mut());

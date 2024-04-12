@@ -16,6 +16,7 @@ fn sign_verify(
     key_name: &str,
     signature: &mut [u8],
     sign_algorithm: AsymmetricSignature,
+    key_type: &[u8],
 ) -> Result<(), Openssl2Error> {
     let provider_path = String::from("../../target/debug/");
     let provider_name = String::from("libparsec_openssl_provider_shared");
@@ -31,7 +32,7 @@ fn sign_verify(
 
     unsafe {
         let mut parsec_pkey: *mut EVP_PKEY = std::ptr::null_mut();
-        load_key(&lib_ctx, &mut param, &mut parsec_pkey);
+        load_key(&lib_ctx, &mut param, &mut parsec_pkey, key_type);
 
         let evp_ctx: *mut EVP_PKEY_CTX = EVP_PKEY_CTX_new_from_pkey(
             lib_ctx.as_ptr() as *mut ossl_lib_ctx_st,
@@ -75,7 +76,7 @@ fn test_signing_ecdsa() {
         hash_alg: Hash::Sha256.into(),
     };
 
-    let _ = sign_verify(&key_name, &mut signature, sign_alg);
+    let _ = sign_verify(&key_name, &mut signature, sign_alg, PARSEC_PROVIDER_ECDSA);
 }
 
 #[ignore]
@@ -90,5 +91,5 @@ fn test_signing_rsa() {
         hash_alg: Hash::Sha256.into(),
     };
 
-    let _ = sign_verify(&key_name, &mut signature, sign_alg);
+    let _ = sign_verify(&key_name, &mut signature, sign_alg, PARSEC_PROVIDER_RSA);
 }

@@ -47,7 +47,7 @@ fn test_loading_keys() {
     let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name);
     unsafe {
         let mut parsec_pkey: *mut EVP_PKEY = std::ptr::null_mut();
-        load_key(&lib_ctx, &mut param, &mut parsec_pkey);
+        load_key(&lib_ctx, &mut param, &mut parsec_pkey, PARSEC_PROVIDER_RSA);
 
         EVP_PKEY_free(parsec_pkey);
     }
