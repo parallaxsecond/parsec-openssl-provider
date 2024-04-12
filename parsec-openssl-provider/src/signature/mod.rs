@@ -184,7 +184,7 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             .get_provctx()
             .get_client()
             .psa_sign_hash(key_name, tbs_slice, sign_algorithm)
-            .map_err(|_| "Parsec Client failed to sign".to_string())?;
+            .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
 
         if sigsize >= sign_res.len() as u32 {
             std::ptr::copy(sign_res.as_ptr(), sig, sign_res.len());
@@ -224,8 +224,7 @@ const OSSL_FUNC_SIGNATURE_FREECTX_PTR: SignatureFreeCtxPtr = parsec_provider_sig
 const OSSL_FUNC_SIGNATURE_SIGN_PTR: SignatureSignPtr = parsec_provider_signature_sign;
 const OSSL_FUNC_SIGNATURE_SIGN_INIT_PTR: SignatureSignInitPtr = parsec_provider_signature_sign_init;
 
-const PARSEC_PROVIDER_ECDSA_SIGN_IMPL: [OSSL_DISPATCH; 1] = [ossl_dispatch!()];
-const PARSEC_PROVIDER_RSA_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
+const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_FREECTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_SIGN, OSSL_FUNC_SIGNATURE_SIGN_PTR) },
@@ -242,13 +241,13 @@ pub const PARSEC_PROVIDER_SIGNATURE: [OSSL_ALGORITHM; 3] = [
     ossl_algorithm!(
         PARSEC_PROVIDER_ECDSA_NAME,
         PARSEC_PROVIDER_DFLT_PROPERTIES,
-        PARSEC_PROVIDER_ECDSA_SIGN_IMPL,
+        PARSEC_PROVIDER_SIGN_IMPL,
         PARSEC_PROVIDER_DESCRIPTION_ECDSA
     ),
     ossl_algorithm!(
         PARSEC_PROVIDER_RSA_NAME,
         PARSEC_PROVIDER_DFLT_PROPERTIES,
-        PARSEC_PROVIDER_RSA_SIGN_IMPL,
+        PARSEC_PROVIDER_SIGN_IMPL,
         PARSEC_PROVIDER_DESCRIPTION_RSA
     ),
     ossl_algorithm!(),
