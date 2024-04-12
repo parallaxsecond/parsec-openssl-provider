@@ -261,3 +261,71 @@ fn test_sign_newctx() {
         parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
     }
 }
+
+#[test]
+fn test_sign_dup() {
+    use crate::keymgmt::{
+        parsec_provider_kmgmt_free, parsec_provider_kmgmt_new, parsec_provider_kmgmt_set_params,
+    };
+    use crate::PARSEC_PROVIDER_KEY_NAME;
+    use crate::{parsec_provider_provider_init, parsec_provider_teardown};
+    use parsec_openssl2::openssl_bindings::OSSL_PARAM_UTF8_PTR;
+
+    let out: *const OSSL_DISPATCH = std::ptr::null();
+    let mut provctx: types::VOID_PTR = std::ptr::null_mut();
+
+    // Initialize the provider
+    let result: Result<(), parsec_openssl2::Error> = unsafe {
+        parsec_provider_provider_init(
+            std::ptr::null(),
+            std::ptr::null(),
+            &out as *const _ as *mut _,
+            &mut provctx as *mut VOID_PTR,
+        )
+    };
+    assert!(result.is_ok());
+    assert_ne!(provctx, std::ptr::null_mut());
+    let s = String::from("");
+
+    let keydata = unsafe { parsec_provider_kmgmt_new(provctx) };
+
+    let my_key_name = "PARSEC_TEST_RSA_KEY".to_string();
+    let mut params = [
+        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
+        ossl_param!(),
+    ];
+
+    let set_params_res = unsafe { parsec_provider_kmgmt_set_params(keydata, &mut params as _) };
+    assert_eq!(set_params_res, OPENSSL_SUCCESS);
+
+    let sig_ctx = unsafe { parsec_provider_signature_newctx(provctx, s.as_ptr() as _) };
+    assert_ne!(sig_ctx, std::ptr::null_mut());
+
+    unsafe { parsec_provider_signature_sign_init(sig_ctx, keydata, params.as_ptr()) };
+
+    let duplicated_ptr = unsafe { parsec_provider_signature_dupctx(sig_ctx) };
+    assert_ne!(duplicated_ptr, std::ptr::null_mut());
+    assert_ne!(duplicated_ptr, sig_ctx);
+
+    let arc_duplicated =
+        unsafe { Arc::from_raw(duplicated_ptr as *const ParsecProviderSignatureContext) };
+    {
+        let binding = arc_duplicated.clone();
+        let keyobj = binding.keyobj.lock().unwrap();
+
+        let name = (*(keyobj)).clone().unwrap();
+        assert_eq!(
+            *(name.get_key_name()),
+            Some("PARSEC_TEST_RSA_KEY".to_string())
+        );
+    }
+
+    // We change back to using pointers instead of Arcs to use the provider's free
+    let duplicated_ptr = Arc::into_raw(arc_duplicated) as VOID_PTR;
+    unsafe {
+        parsec_provider_signature_freectx(duplicated_ptr);
+        parsec_provider_signature_freectx(sig_ctx);
+        parsec_provider_kmgmt_free(keydata);
+        parsec_provider_teardown(provctx as _);
+    }
+}
