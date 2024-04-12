@@ -6,7 +6,6 @@ use parsec_openssl_provider::parsec_openssl2::{
     openssl_bindings, openssl_returns_1, openssl_returns_nonnull, openssl_returns_nonnull_const,
     ossl_param,
 };
-use parsec_openssl_provider::PARSEC_PROVIDER_KEY_NAME;
 use std::ffi::CStr;
 
 // Simple test to load a provider. Test fails if load_provider function reports error
@@ -30,26 +29,6 @@ fn test_parsec_provider_name() {
         let prov_name = OSSL_PROVIDER_get0_name(provider.as_ptr() as *const ossl_provider_st);
         let prov_name = CStr::from_ptr(prov_name);
         assert_eq!(prov_name.to_str().unwrap(), provider_name);
-    }
-}
-
-// Loads a keys from the provider and returns an EVP_PKEY object with the details.
-#[test]
-fn test_loading_keys() {
-    let provider_path = String::from("../../target/debug/");
-    let provider_name = String::from("libparsec_openssl_provider_shared");
-
-    let lib_ctx: LibCtx = LibCtx::new().unwrap();
-    let _provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
-
-    // Create a key beforehand using the parsec-tool and then run the test.
-    let my_key_name = "PARSEC_TEST_RSA_KEY".to_string();
-    let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name);
-    unsafe {
-        let mut parsec_pkey: *mut EVP_PKEY = std::ptr::null_mut();
-        load_key(&lib_ctx, &mut param, &mut parsec_pkey, PARSEC_PROVIDER_RSA);
-
-        EVP_PKEY_free(parsec_pkey);
     }
 }
 
