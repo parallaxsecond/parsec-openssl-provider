@@ -9,8 +9,9 @@ use crate::openssl_bindings::{
     OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
 };
 use crate::{
-    ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
-    PARSEC_PROVIDER_KEY_NAME, PARSEC_PROVIDER_RSA_NAME,
+    ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
+    PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_KEY_NAME,
+    PARSEC_PROVIDER_RSA_NAME,
 };
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
@@ -368,7 +369,7 @@ const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
 const OSSL_FUNC_KEYMGMT_VALIDATE_PTR: KeyMgmtValidatePtr = parsec_provider_kmgmt_validate;
 const OSSL_FUNC_KEYMGMT_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_kmgmt_match;
 
-const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
+const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
@@ -397,11 +398,17 @@ const PARSEC_PROVIDER_RSA_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
     ossl_dispatch!(),
 ];
 
-pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 2] = [
+pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 3] = [
+    ossl_algorithm!(
+        PARSEC_PROVIDER_ECDSA_NAME,
+        PARSEC_PROVIDER_DFLT_PROPERTIES,
+        PARSEC_PROVIDER_KEYMGMT_IMPL,
+        PARSEC_PROVIDER_DESCRIPTION_ECDSA
+    ),
     ossl_algorithm!(
         PARSEC_PROVIDER_RSA_NAME,
         PARSEC_PROVIDER_DFLT_PROPERTIES,
-        PARSEC_PROVIDER_RSA_KEYMGMT_IMPL,
+        PARSEC_PROVIDER_KEYMGMT_IMPL,
         PARSEC_PROVIDER_DESCRIPTION_RSA
     ),
     ossl_algorithm!(),
@@ -509,7 +516,7 @@ fn test_kmgmt_validate() {
     assert_eq!(result, OPENSSL_ERROR);
 
     // Check that validate succeeds with "good" data
-    let my_key_name = "PARSEC_TEST_RSA_KEY".to_string();
+    let my_key_name = "PARSEC_TEST_ECDSA_KEY".to_string();
     let mut params = [
         ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
         ossl_param!(),
