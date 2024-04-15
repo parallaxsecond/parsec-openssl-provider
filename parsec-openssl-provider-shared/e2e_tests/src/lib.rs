@@ -7,11 +7,7 @@ pub use foreign_types_shared::ForeignType;
 pub use parsec_openssl_provider::parsec_openssl2::openssl::{lib_ctx::LibCtx, provider::Provider};
 pub use parsec_openssl_provider::parsec_openssl2::openssl_bindings::*;
 use parsec_openssl_provider::parsec_openssl2::openssl_returns_1;
-
-// These needs to be replaced with consts from the key management module
-pub const PARSEC_PROVIDER_RSA: &[u8; 4] = b"RSA\0";
-pub const PARSEC_PROVIDER_ECDSA: &[u8; 6] = b"ECDSA\0";
-pub const PARSEC_PROVIDER_PROPERTY: &[u8; 16] = b"provider=parsec\0";
+use parsec_openssl_provider::PARSEC_PROVIDER_DFLT_PROPERTIES;
 
 // Loads a provider into the given library context
 pub fn load_provider(lib_ctx: &LibCtx, provider_name: &str, provider_path: String) -> Provider {
@@ -30,7 +26,7 @@ pub unsafe fn load_key(
     let evp_ctx: *mut EVP_PKEY_CTX = EVP_PKEY_CTX_new_from_name(
         lib_ctx.as_ptr() as *mut ossl_lib_ctx_st,
         key_type.as_ptr() as *const ::std::os::raw::c_char,
-        PARSEC_PROVIDER_PROPERTY.as_ptr() as *const ::std::os::raw::c_char,
+        PARSEC_PROVIDER_DFLT_PROPERTIES.as_ptr() as *const ::std::os::raw::c_char,
     );
     assert_ne!(evp_ctx, std::ptr::null_mut());
     openssl_returns_1(EVP_PKEY_fromdata_init(evp_ctx)).unwrap();

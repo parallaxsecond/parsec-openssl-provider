@@ -26,11 +26,11 @@ mod catch;
 use catch::r#catch;
 
 // Parameter names that Providers can define
-const PARSEC_PROVIDER_RSA_NAME: &[u8; 39] = b"RSA\0";
-const PARSEC_PROVIDER_ECDSA_NAME: &[u8; 36] = b"ECDSA\0";
+pub const PARSEC_PROVIDER_RSA_NAME: &[u8; 39] = b"RSA:rsaEncryption:1.2.840.113549.1.1.1\0";
+pub const PARSEC_PROVIDER_ECDSA_NAME: &[u8; 36] = b"EC:id-ecPublicKey:1.2.840.10045.2.1\0";
 const PARSEC_PROVIDER_DESCRIPTION_RSA: &[u8; 11] = b"Parsec RSA\0";
 const PARSEC_PROVIDER_DESCRIPTION_ECDSA: &[u8; 13] = b"Parsec ECDSA\0";
-const PARSEC_PROVIDER_DFLT_PROPERTIES: &[u8; 16] = b"provider=parsec\0";
+pub const PARSEC_PROVIDER_DFLT_PROPERTIES: &[u8; 16] = b"provider=parsec\0";
 pub const PARSEC_PROVIDER_KEY_NAME: &[u8; 25] = b"parsec_provider_key_name\0";
 
 // The init function populates the dispatch table and returns a void pointer
