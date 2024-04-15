@@ -91,6 +91,7 @@ if [ "$TEST" == "True" ]; then
         parsec-tool create-rsa-key -s -b 2048 -k PARSEC_TEST_RSA_KEY
         parsec-tool create-ecc-key -k PARSEC_TEST_ECDSA_KEY
     fi
+
     # Try loading the built parsec provider 
     PROVIDER_LOAD_RESULT=$(openssl list -providers -provider-path ./target/debug/ -provider libparsec_openssl_provider_shared)
     echo $PROVIDER_LOAD_RESULT
@@ -107,6 +108,16 @@ if [ "$TEST" == "True" ]; then
     fi
 
     echo "Parsec OpenSSL Provider loaded successfully!!!!"
+
+    # Setup the openssl conf file with default and parsec provider enabled
+    export OPENSSL_CONF=/tmp/parsec-openssl-provider/tests/openssl.cnf
+    PROVIDER_LOAD_RESULT=$(openssl list -providers)
+    if [[ $PROVIDER_LOAD_RESULT == *"default"* && $PROVIDER_LOAD_RESULT == *"parsec"* ]]; then
+        echo "Loaded both Parsec and Default providers!!"
+    else
+        echo "Failed to load both Parsec and Default providers!!"
+        exit 1
+    fi
 
     pushd parsec-openssl-provider
     cargo test
