@@ -6,7 +6,10 @@ use parsec_client::core::basic_client::BasicClient;
 use parsec_client::core::interface::operations::psa_algorithm::{AsymmetricSignature, Hash};
 use parsec_openssl_provider::parsec_openssl2::ossl_param;
 use parsec_openssl_provider::parsec_openssl2::{openssl_returns_1, Openssl2Error};
-use parsec_openssl_provider::PARSEC_PROVIDER_KEY_NAME;
+use parsec_openssl_provider::{
+    PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_KEY_NAME,
+    PARSEC_PROVIDER_RSA_NAME,
+};
 use sha2::{Digest, Sha256};
 
 // Signs a digest using Parsec Provider and verifies the signature using the
@@ -37,7 +40,7 @@ fn sign_verify(
         let evp_ctx: *mut EVP_PKEY_CTX = EVP_PKEY_CTX_new_from_pkey(
             lib_ctx.as_ptr() as *mut ossl_lib_ctx_st,
             parsec_pkey,
-            PARSEC_PROVIDER_PROPERTY.as_ptr() as *const ::std::os::raw::c_char,
+            PARSEC_PROVIDER_DFLT_PROPERTIES.as_ptr() as *const ::std::os::raw::c_char,
         );
 
         let mut sign_len = signature.len();
@@ -76,7 +79,12 @@ fn test_signing_ecdsa() {
         hash_alg: Hash::Sha256.into(),
     };
 
-    let _ = sign_verify(&key_name, &mut signature, sign_alg, PARSEC_PROVIDER_ECDSA);
+    let _ = sign_verify(
+        &key_name,
+        &mut signature,
+        sign_alg,
+        PARSEC_PROVIDER_ECDSA_NAME,
+    );
 }
 
 #[ignore]
@@ -91,5 +99,10 @@ fn test_signing_rsa() {
         hash_alg: Hash::Sha256.into(),
     };
 
-    let _ = sign_verify(&key_name, &mut signature, sign_alg, PARSEC_PROVIDER_RSA);
+    let _ = sign_verify(
+        &key_name,
+        &mut signature,
+        sign_alg,
+        PARSEC_PROVIDER_RSA_NAME,
+    );
 }
