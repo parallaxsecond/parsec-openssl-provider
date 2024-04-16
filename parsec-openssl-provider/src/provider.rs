@@ -3,6 +3,7 @@
 
 use crate::keymgmt::PARSEC_PROVIDER_KEYMGMT;
 use crate::signature::PARSEC_PROVIDER_SIGNATURE;
+use crate::store::PARSEC_PROVIDER_STORE;
 
 use parsec_openssl2::{
     locate_and_set_provider_status_param, locate_and_set_utf8_param, ossl_param, OPENSSL_ERROR,
@@ -14,9 +15,9 @@ use parsec_client::BasicClient;
 use std::sync::Arc;
 
 use crate::openssl_bindings::{
-    OSSL_ALGORITHM, OSSL_OP_KEYMGMT, OSSL_OP_SIGNATURE, OSSL_PARAM, OSSL_PARAM_INTEGER,
-    OSSL_PARAM_UTF8_PTR, OSSL_PROV_PARAM_BUILDINFO, OSSL_PROV_PARAM_NAME, OSSL_PROV_PARAM_STATUS,
-    OSSL_PROV_PARAM_VERSION,
+    OSSL_ALGORITHM, OSSL_OP_KEYMGMT, OSSL_OP_SIGNATURE, OSSL_OP_STORE, OSSL_PARAM,
+    OSSL_PARAM_INTEGER, OSSL_PARAM_UTF8_PTR, OSSL_PROV_PARAM_BUILDINFO, OSSL_PROV_PARAM_NAME,
+    OSSL_PROV_PARAM_STATUS, OSSL_PROV_PARAM_VERSION,
 };
 
 use num_derive::FromPrimitive;
@@ -110,6 +111,7 @@ pub type ProviderTeardownPtr = unsafe extern "C" fn(provctx: *const OSSL_PROVIDE
 enum ParsecProviderOperationId {
     KeyMgmgt = OSSL_OP_KEYMGMT as i32,
     Signature = OSSL_OP_SIGNATURE as i32,
+    Store = OSSL_OP_STORE as i32,
 }
 
 // The null provider implementation currently doesn't supply any algorithms to the core
@@ -125,6 +127,7 @@ pub unsafe extern "C" fn parsec_provider_query(
         match id {
             ParsecProviderOperationId::KeyMgmgt => PARSEC_PROVIDER_KEYMGMT.as_ptr(),
             ParsecProviderOperationId::Signature => PARSEC_PROVIDER_SIGNATURE.as_ptr(),
+            ParsecProviderOperationId::Store => PARSEC_PROVIDER_STORE.as_ptr(),
         }
     } else {
         std::ptr::null_mut()

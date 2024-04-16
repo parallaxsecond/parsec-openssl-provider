@@ -18,6 +18,7 @@ use parsec_openssl2::{openssl_bindings, types};
 
 mod keymgmt;
 mod signature;
+mod store;
 
 mod provider;
 use provider::*;
@@ -119,6 +120,8 @@ openssl_errors::openssl_errors! {
             PROVIDER_QUERY("parsec_provider_query");
             PROVIDER_SIGNATURE_SIGN("parsec_provider_signature_sign");
             PROVIDER_SIGNATURE_SIGN_INIT("parsec_provider_signature_sign_init");
+            PROVIDER_STORE_CLOSE("parsec_provider_store_close");
+            PARSEC_PROVIDER_STORE_CLOSE("parsec_provider_store_close");
             PROVIDER_TEARDOWN("parsec_provider_teardown");
         }
 
