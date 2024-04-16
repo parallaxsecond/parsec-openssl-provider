@@ -21,6 +21,10 @@ fn sign_verify(
     sign_algorithm: AsymmetricSignature,
     key_type: &[u8],
 ) -> Result<(), Openssl2Error> {
+    // These are a backup to be used with different modalities of EVP_PKEY_sign
+    let mut other_signature: Vec<u8> = vec![0; signature.len()];
+    let mut other_len = signature.len();
+
     let provider_path = String::from("../../target/debug/");
     let provider_name = String::from("libparsec_openssl_provider_shared");
 
@@ -43,14 +47,34 @@ fn sign_verify(
             PARSEC_PROVIDER_DFLT_PROPERTIES.as_ptr() as *const ::std::os::raw::c_char,
         );
 
-        let mut sign_len = signature.len();
+        let mut sign_len = 0;
 
         // Initialize and perform signing operation using EVP interfaces
         openssl_returns_1(EVP_PKEY_sign_init(evp_ctx)).unwrap();
+
+        openssl_returns_1(EVP_PKEY_sign(
+            evp_ctx,
+            std::ptr::null_mut(),
+            &mut sign_len,
+            hash.as_ptr(),
+            hash.len(),
+        ))
+        .unwrap();
+        assert_eq!(sign_len, signature.len());
+
         openssl_returns_1(EVP_PKEY_sign(
             evp_ctx,
             signature.as_mut_ptr(),
             &mut sign_len,
+            hash.as_ptr(),
+            hash.len(),
+        ))
+        .unwrap();
+
+        openssl_returns_1(EVP_PKEY_sign(
+            evp_ctx,
+            other_signature.as_mut_ptr(),
+            &mut other_len,
             hash.as_ptr(),
             hash.len(),
         ))
@@ -63,6 +87,14 @@ fn sign_verify(
 
     client
         .psa_verify_hash(key_name, &hash, sign_algorithm, signature)
+        .unwrap();
+    client
+        .psa_verify_hash(
+            key_name,
+            &hash,
+            sign_algorithm,
+            other_signature.as_mut_slice(),
+        )
         .unwrap();
     Ok(())
 }
