@@ -23,6 +23,7 @@ fn main() -> std::io::Result<()> {
     // Generate bindings for the required headers
     let openssl_builder = bindgen::Builder::default()
         .header(format!("{}/openssl/core_dispatch.h", openssl_include_path))
+        .header(format!("{}/openssl/core_object.h", openssl_include_path))
         .header(format!("{}/openssl/types.h", openssl_include_path))
         .header(format!("{}/openssl/params.h", openssl_include_path))
         .header(format!("{}/openssl/core_names.h", openssl_include_path))

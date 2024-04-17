@@ -121,6 +121,8 @@ openssl_errors::openssl_errors! {
             PROVIDER_SIGNATURE_SIGN("parsec_provider_signature_sign");
             PROVIDER_SIGNATURE_SIGN_INIT("parsec_provider_signature_sign_init");
             PROVIDER_STORE_CLOSE("parsec_provider_store_close");
+            PROVIDER_STORE_EOF("parsec_provider_store_eof");
+            PROVIDER_STORE_LOAD("parsec_provider_store_load");
             PARSEC_PROVIDER_STORE_CLOSE("parsec_provider_store_close");
             PROVIDER_TEARDOWN("parsec_provider_teardown");
         }
