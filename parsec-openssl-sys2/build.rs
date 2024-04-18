@@ -28,6 +28,7 @@ fn main() -> std::io::Result<()> {
         .header(format!("{}/openssl/core_names.h", openssl_include_path))
         .header(format!("{}/openssl/evp.h", openssl_include_path))
         .header(format!("{}/openssl/provider.h", openssl_include_path))
+        .header(format!("{}/openssl/store.h", openssl_include_path))
         .generate_comments(false)
         .size_t_is_usize(true);
 
