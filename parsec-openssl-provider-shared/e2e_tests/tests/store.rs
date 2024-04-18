@@ -38,19 +38,14 @@ fn test_store_for_key() {
             // * here just one example
             // */
 
-        //     /*
-        //     * Do whatever is necessary with the OSSL_STORE_INFO,
-        //     * here just one example
-        //     */
-
-        //     switch (OSSL_STORE_INFO_get_type(info)) {
-        //     case OSSL_STORE_INFO_CERT:
-        //         /* Print the X.509 certificate text */
-        //         X509_print_fp(stdout, OSSL_STORE_INFO_get0_CERT(info));
-        //         /* Print the X.509 certificate PEM output */
-        //         PEM_write_X509(stdout, OSSL_STORE_INFO_get0_CERT(info));
-        //         break;
-        //     }
+            // switch (OSSL_STORE_INFO_get_type(info)) {
+            // case OSSL_STORE_INFO_CERT:
+            //     /* Print the X.509 certificate text */
+            //     X509_print_fp(stdout, OSSL_STORE_INFO_get0_CERT(info));
+            //     /* Print the X.509 certificate PEM output */
+            //     PEM_write_X509(stdout, OSSL_STORE_INFO_get0_CERT(info));
+            //     break;
+            // }
         }
 
         OSSL_STORE_close(ctx);

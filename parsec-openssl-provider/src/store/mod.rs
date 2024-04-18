@@ -103,6 +103,7 @@ unsafe extern "C" fn parsec_provider_store_load(
     _pw_cb: *const OSSL_PASSPHRASE_CALLBACK,
     _pw_cbarg: VOID_PTR,
 ) -> std::os::raw::c_int {
+    println!("parsec_provider_store_load");
     let result = super::r#catch(Some(|| super::Error::PROVIDER_STORE_LOAD), || {
         if loaderctx.is_null() {
             return Err("loaderctx should not be NULL".into());
@@ -177,12 +178,14 @@ indicates if the end of the set of objects from the URI has been reached. When t
 there's no point trying to do any further loading.
 */
 unsafe extern "C" fn parsec_provider_store_eof(loaderctx: VOID_PTR) -> std::os::raw::c_int {
+    println!("parsec_provider_store_eof");
     let result = super::r#catch(Some(|| super::Error::PROVIDER_STORE_EOF), || {
         if loaderctx.is_null() {
             return Err("loaderctx should not be NULL".into());
         }
         Arc::increment_strong_count(loaderctx as *const RwLock<ParsecProviderStoreContext>);
-        let ctx = Arc::from_raw(loaderctx as *const RwLock<ParsecProviderStoreContext>);
+        let ctx: Arc<RwLock<ParsecProviderStoreContext>> =
+            Arc::from_raw(loaderctx as *const RwLock<ParsecProviderStoreContext>);
         let ctx_reader = ctx.read().unwrap();
         if ctx_reader.is_eof() {
             Ok(OPENSSL_SUCCESS)
