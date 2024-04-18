@@ -1,6 +1,6 @@
 use crate::openssl_bindings::{
     OSSL_PARAM_construct_end, OSSL_PARAM_construct_int, OSSL_PARAM_construct_octet_string,
-    OSSL_PARAM_construct_utf8_string, OSSL_ALGORITHM, OSSL_CORE_BIO, OSSL_DISPATCH,
+    OSSL_PARAM_construct_utf8_string, OSSL_ALGORITHM, OSSL_CALLBACK, OSSL_CORE_BIO, OSSL_DISPATCH,
     OSSL_FUNC_STORE_ATTACH, OSSL_FUNC_STORE_CLOSE, OSSL_FUNC_STORE_EOF, OSSL_FUNC_STORE_LOAD,
     OSSL_FUNC_STORE_OPEN, OSSL_OBJECT_PARAM_DATA, OSSL_OBJECT_PARAM_DATA_TYPE,
     OSSL_OBJECT_PARAM_TYPE, OSSL_OBJECT_PKEY, OSSL_PARAM, OSSL_PASSPHRASE_CALLBACK,
@@ -196,6 +196,17 @@ unsafe extern "C" fn parsec_provider_store_eof(loaderctx: VOID_PTR) -> std::os::
     }
 }
 
+/*
+should create a provider side context with the core BIO bio attached. This is an alternative to using a URI to find
+storage, supporting OSSL_STORE_attach.
+*/
+unsafe extern "C" fn parsec_provider_store_attach(
+    _provctx: VOID_PTR,
+    _bio: *const OSSL_CORE_BIO,
+) -> VOID_PTR {
+    std::ptr::null_mut()
+}
+
 type StoreOpenPtr = unsafe extern "C" fn(VOID_PTR, *const std::os::raw::c_char) -> VOID_PTR;
 type StoreClosePtr = unsafe extern "C" fn(VOID_PTR) -> std::os::raw::c_int;
 type StoreEofPtr = unsafe extern "C" fn(VOID_PTR) -> std::os::raw::c_int;
@@ -206,17 +217,20 @@ type StoreLoadPtr = unsafe extern "C" fn(
     *const OSSL_PASSPHRASE_CALLBACK,
     VOID_PTR,
 ) -> std::os::raw::c_int;
+type StoreAttachPtr = unsafe extern "C" fn(VOID_PTR, *const OSSL_CORE_BIO) -> VOID_PTR;
 
 const OSSL_FUNC_STORE_OPEN_PTR: StoreOpenPtr = parsec_provider_store_open;
 const OSSL_FUNC_STORE_CLOSE_PTR: StoreClosePtr = parsec_provider_store_close;
 const OSSL_FUNC_STORE_EOF_PTR: StoreEofPtr = parsec_provider_store_eof;
 const OSSL_FUNC_STORE_LOAD_PTR: StoreLoadPtr = parsec_provider_store_load;
+const OSSL_FUNC_STORE_ATTACH_PTR: StoreAttachPtr = parsec_provider_store_attach;
 
-const PARSEC_PROVIDER_STORE_IMPL: [OSSL_DISPATCH; 5] = [
+const PARSEC_PROVIDER_STORE_IMPL: [OSSL_DISPATCH; 6] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_STORE_OPEN, OSSL_FUNC_STORE_OPEN_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_STORE_CLOSE, OSSL_FUNC_STORE_CLOSE_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_STORE_LOAD, OSSL_FUNC_STORE_LOAD_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_STORE_EOF, OSSL_FUNC_STORE_EOF_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_STORE_ATTACH, OSSL_FUNC_STORE_ATTACH_PTR) },
     ossl_dispatch!(),
 ];
 
