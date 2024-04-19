@@ -165,6 +165,14 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             return Ok(OPENSSL_SUCCESS);
         }
 
+        if (sigsize as usize) < siglength {
+            return Err(format!(
+                "Signature length is bigger than sigsize. Signature length: {}",
+                siglength
+            )
+            .into());
+        }
+
         if tbs.is_null() {
             return Err("Received unexpected NULL pointer as an argument.".into());
         }
@@ -186,16 +194,12 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             .psa_sign_hash(key_name, tbs_slice, sign_algorithm)
             .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
 
-        if sigsize >= sign_res.len() as u32 {
+        if siglength != sign_res.len() {
+            Err(format!("Unexpected signature length: {}", sign_res.len()).into())
+        } else {
             std::ptr::copy(sign_res.as_ptr(), sig, sign_res.len());
             *siglen = sign_res.len() as u32;
             Ok(OPENSSL_SUCCESS)
-        } else {
-            Err(format!(
-                "Signature length is bigger than sigsize. Signature length: {}",
-                sign_res.len()
-            )
-            .into())
         }
     });
 
