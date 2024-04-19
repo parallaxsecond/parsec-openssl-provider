@@ -1,6 +1,6 @@
 use crate::openssl_bindings::{
     OSSL_PARAM_construct_end, OSSL_PARAM_construct_int, OSSL_PARAM_construct_octet_string,
-    OSSL_PARAM_construct_utf8_string, OSSL_ALGORITHM, OSSL_CALLBACK, OSSL_CORE_BIO, OSSL_DISPATCH,
+    OSSL_PARAM_construct_utf8_string, OSSL_ALGORITHM, OSSL_CORE_BIO, OSSL_DISPATCH,
     OSSL_FUNC_STORE_ATTACH, OSSL_FUNC_STORE_CLOSE, OSSL_FUNC_STORE_EOF, OSSL_FUNC_STORE_LOAD,
     OSSL_FUNC_STORE_OPEN, OSSL_OBJECT_PARAM_REFERENCE, OSSL_OBJECT_PARAM_DATA_TYPE,
     OSSL_OBJECT_PARAM_TYPE, OSSL_OBJECT_PKEY, OSSL_PARAM, OSSL_PASSPHRASE_CALLBACK,
@@ -21,7 +21,7 @@ const PARSEC_PROVIDER_ECDSA: &[u8; 3] = b"EC\0";
 use std::sync::{Arc, RwLock};
 
 struct ParsecProviderStoreContext {
-    provctx: Arc<ParsecProviderContext>,
+    _provctx: Arc<ParsecProviderContext>,
     keys: Vec<KeyInfo>,
     index: usize,
 }
@@ -29,7 +29,7 @@ struct ParsecProviderStoreContext {
 impl ParsecProviderStoreContext {
     pub fn new(provctx: Arc<ParsecProviderContext>, keys: Vec<KeyInfo>) -> Self {
         ParsecProviderStoreContext {
-            provctx: provctx.clone(),
+            _provctx: provctx.clone(),
             keys,
             index: 0,
         }
@@ -112,18 +112,13 @@ unsafe extern "C" fn parsec_provider_store_load(
         Arc::increment_strong_count(loaderctx as *const RwLock<ParsecProviderStoreContext>);
         let ctx = Arc::from_raw(loaderctx as *const RwLock<ParsecProviderStoreContext>);
 
-        let (key, key_attrs) = {
+        let key = {
             let mut ctx_writer = ctx.write().unwrap();
             let key = ctx_writer.get_next_key();
             ctx_writer.increment_iterator();
-            let key_attrs = ctx_writer
-                .provctx
-                .get_client()
-                .key_attributes(key.name.as_str())
-                .map_err(|e| format!("Failed to get specified key's attributes: {}", e))?;
-            (key, key_attrs)
+            key
         };
-        let (data_type_ptr, _data_type_len) = match key_attrs.key_type {
+        let (data_type_ptr, _data_type_len) = match key.attributes.key_type {
             Type::RsaKeyPair => Ok((
                 PARSEC_PROVIDER_RSA.as_ptr(),
                 PARSEC_PROVIDER_RSA.len(),
