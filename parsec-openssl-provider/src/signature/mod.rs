@@ -11,7 +11,6 @@ use crate::{
     PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_RSA_NAME,
 };
 use parsec_client::core::interface::operations::psa_algorithm::Algorithm;
-use parsec_client::core::interface::operations::psa_key_attributes::{Attributes, EccFamily, Type};
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
 
@@ -99,19 +98,6 @@ unsafe extern "C" fn parsec_provider_signature_sign_init(
     }
 }
 
-fn get_signature_len(key_attrs: Attributes) -> Result<usize, String> {
-    match key_attrs.key_type {
-        Type::RsaKeyPair => Ok(key_attrs.bits / 8),
-        Type::EccKeyPair {
-            curve_family: EccFamily::SecpR1,
-        } => {
-            let size_times_two: usize = key_attrs.bits * 2;
-            Ok(size_times_two.div_ceil(8))
-        }
-        _ => Err("Key type not recognized".to_string()),
-    }
-}
-
 /*
 performs the actual signing itself. A previously initialised signature context is passed in the ctx parameter. The data
 to be signed is pointed to be the tbs parameter which is tbslen bytes long. Unless sig is NULL, the signature should be
@@ -153,17 +139,6 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             .get_client()
             .key_attributes(key_name)
             .map_err(|e| format!("Failed to get specified key's attributes: {}", e))?;
-        let siglength = get_signature_len(key_attributes).map_err(|e| {
-            format!(
-                "Failed to Get correct signature length for the given key:  {}",
-                e
-            )
-        })?;
-
-        if sig.is_null() {
-            *siglen = siglength as std::os::raw::c_uint;
-            return Ok(OPENSSL_SUCCESS);
-        }
 
         if tbs.is_null() {
             return Err("Received unexpected NULL pointer as an argument.".into());
@@ -185,6 +160,11 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             .get_client()
             .psa_sign_hash(key_name, tbs_slice, sign_algorithm)
             .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
+
+        if sig.is_null() {
+            *siglen = sign_res.len() as std::os::raw::c_uint;
+            return Ok(OPENSSL_SUCCESS);
+        }
 
         if sigsize >= sign_res.len() as u32 {
             std::ptr::copy(sign_res.as_ptr(), sig, sign_res.len());
