@@ -1,13 +1,15 @@
+use crate::keymgmt::{
+    parsec_provider_kmgmt_new, parsec_provider_kmgmt_set_params, ParsecProviderKeyObject,
+};
 use crate::openssl_bindings::{
     OSSL_PARAM_construct_end, OSSL_PARAM_construct_int, OSSL_PARAM_construct_octet_string,
     OSSL_PARAM_construct_utf8_string, OSSL_ALGORITHM, OSSL_CORE_BIO, OSSL_DISPATCH,
     OSSL_FUNC_STORE_ATTACH, OSSL_FUNC_STORE_CLOSE, OSSL_FUNC_STORE_EOF, OSSL_FUNC_STORE_LOAD,
-    OSSL_FUNC_STORE_OPEN, OSSL_OBJECT_PARAM_REFERENCE, OSSL_OBJECT_PARAM_DATA_TYPE,
-    OSSL_OBJECT_PARAM_TYPE, OSSL_OBJECT_PKEY, OSSL_PARAM, OSSL_PASSPHRASE_CALLBACK,
+    OSSL_FUNC_STORE_OPEN, OSSL_OBJECT_PARAM_DATA_TYPE, OSSL_OBJECT_PARAM_REFERENCE,
+    OSSL_OBJECT_PARAM_TYPE, OSSL_OBJECT_PKEY, OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
+    OSSL_PASSPHRASE_CALLBACK,
 };
-use crate::{
-    ParsecProviderContext, PARSEC_PROVIDER_DFLT_PROPERTIES,
-};
+use crate::{ParsecProviderContext, PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_KEY_NAME};
 use parsec_client::core::interface::operations::list_keys::KeyInfo;
 use parsec_client::core::interface::operations::psa_key_attributes::{EccFamily, Type};
 use parsec_openssl2::types::VOID_PTR;
@@ -21,7 +23,7 @@ const PARSEC_PROVIDER_ECDSA: &[u8; 3] = b"EC\0";
 use std::sync::{Arc, RwLock};
 
 struct ParsecProviderStoreContext {
-    _provctx: Arc<ParsecProviderContext>,
+    provctx: Arc<ParsecProviderContext>,
     keys: Vec<KeyInfo>,
     index: usize,
 }
@@ -29,7 +31,7 @@ struct ParsecProviderStoreContext {
 impl ParsecProviderStoreContext {
     pub fn new(provctx: Arc<ParsecProviderContext>, keys: Vec<KeyInfo>) -> Self {
         ParsecProviderStoreContext {
-            _provctx: provctx.clone(),
+            provctx: provctx.clone(),
             keys,
             index: 0,
         }
@@ -119,18 +121,30 @@ unsafe extern "C" fn parsec_provider_store_load(
             key
         };
         let (data_type_ptr, _data_type_len) = match key.attributes.key_type {
-            Type::RsaKeyPair => Ok((
-                PARSEC_PROVIDER_RSA.as_ptr(),
-                PARSEC_PROVIDER_RSA.len(),
-            )),
+            Type::RsaKeyPair => Ok((PARSEC_PROVIDER_RSA.as_ptr(), PARSEC_PROVIDER_RSA.len())),
             Type::EccKeyPair {
                 curve_family: EccFamily::SecpR1,
-            } => Ok((
-                PARSEC_PROVIDER_ECDSA.as_ptr(),
-                PARSEC_PROVIDER_ECDSA.len(),
-            )),
+            } => Ok((PARSEC_PROVIDER_ECDSA.as_ptr(), PARSEC_PROVIDER_ECDSA.len())),
             _ => Err("Key type not recognized".to_string()),
         }?;
+
+        let keyctx = {
+            let ctx_reader = ctx.read().unwrap();
+            let prov_ptr = Arc::into_raw(ctx_reader.provctx.clone()) as VOID_PTR;
+            parsec_provider_kmgmt_new(prov_ptr)
+        };
+        let key_name = key.name;
+        let mut keyparam = [
+            ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key_name),
+            ossl_param!(),
+        ];
+
+        assert_ne!(keyctx, std::ptr::null_mut());
+        let keyparam_res = parsec_provider_kmgmt_set_params(keyctx, &mut keyparam as _);
+        if keyparam_res != OPENSSL_SUCCESS {
+            return Ok(keyparam_res);
+        }
+
         let mut obj_type = OSSL_OBJECT_PKEY as isize;
         let obj_type_ref = &mut obj_type;
         let obj_type_ptr = obj_type_ref as *mut isize;
@@ -143,24 +157,19 @@ unsafe extern "C" fn parsec_provider_store_load(
             ),
             OSSL_PARAM_construct_octet_string(
                 OSSL_OBJECT_PARAM_REFERENCE.as_ptr() as _,
-                key.name.as_ptr() as VOID_PTR,
-                key.name.len(),
+                keyctx,
+                // https://doc.rust-lang.org/std/mem/fn.size_of.html
+                // The types *const T, &T, Box<T>, Option<&T>, and Option<Box<T>> all have the same size
+                std::mem::size_of::<*const ParsecProviderKeyObject>(),
             ),
             OSSL_PARAM_construct_end(),
         ];
-        println!("object_cbarg.is_null(): {}", object_cbarg.is_null());
-        let result = object_cb(params.as_ptr(), object_cbarg);
-        println!("callback result: {}", result);
-        Ok(result)
-        // match object_cb {
-        //     Some(callback) => {
-        //         println!("object_cbarg.is_null(): {}", object_cbarg.is_null());
-        //         let result = callback(params.as_ptr(), object_cbarg);
-        //         println!("callback result: {}", result);
-        //         Ok(result)
-        //     }
-        //     None => Err("object_cb is not set".into()),
-        // }
+
+        // println!("object_cbarg.is_null(): {}", object_cbarg.is_null());
+        let _result = object_cb(params.as_ptr(), object_cbarg);
+        // println!("callback result: {}", result);
+        // Ok(result)
+        Ok(OPENSSL_SUCCESS)
     });
     match result {
         Ok(result) => result,

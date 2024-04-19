@@ -4,9 +4,9 @@
 use crate::openssl_bindings::{
     OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_FREE,
     OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
-    OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
-    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS,
-    OSSL_PARAM, OSSL_PARAM_UTF8_PTR, OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME
+    OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
+    OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS, OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_FUNC_KEYMGMT_VALIDATE,
+    OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
 };
 use crate::{
     ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
@@ -245,10 +245,11 @@ provider_query_operation() (see provider-base), but only works as an advisory. I
 returns NULL, the caller is free to assume that there's an algorithm from the same provider, of the same name as the one
 used to fetch the keymgmt and try to use that
 */
-pub unsafe extern "C" fn parsec_provider_kmgmt_query_operation_name(_operation_id: std::os::raw::c_int) -> *const std::os::raw::c_char {
+pub unsafe extern "C" fn parsec_provider_kmgmt_query_operation_name(
+    _operation_id: std::os::raw::c_int,
+) -> *const std::os::raw::c_char {
     return PARSEC_PROVIDER_RSA.as_ptr() as *const std::os::raw::c_char;
 }
-
 
 // Should check if the keydata contains valid data subsets indicated by selection.
 pub unsafe extern "C" fn parsec_provider_kmgmt_validate(
@@ -375,7 +376,8 @@ pub type KeyMgmtValidatePtr =
     unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int, std::os::raw::c_int) -> std::os::raw::c_int;
 pub type KeyMgmtMatchPtr =
     unsafe extern "C" fn(VOID_PTR, VOID_PTR, std::os::raw::c_int) -> std::os::raw::c_int;
-pub type KeyMgmtQueryOperationNamePtr = unsafe extern "C" fn(std::os::raw::c_int) -> *const std::os::raw::c_char;
+pub type KeyMgmtQueryOperationNamePtr =
+    unsafe extern "C" fn(std::os::raw::c_int) -> *const std::os::raw::c_char;
 
 const OSSL_FUNC_KEYMGMT_DUP_PTR: KeyMgmtDupPtr = parsec_provider_keymgmt_dup;
 const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
@@ -389,7 +391,8 @@ const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
 const OSSL_FUNC_KEYMGMT_VALIDATE_PTR: KeyMgmtValidatePtr = parsec_provider_kmgmt_validate;
 const OSSL_FUNC_KEYMGMT_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_kmgmt_match;
-const OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr = parsec_provider_kmgmt_query_operation_name;
+const OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
+    parsec_provider_kmgmt_query_operation_name;
 
 const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 12] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
@@ -417,7 +420,12 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 12] = [
     },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_MATCH_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_FUNC_KEYMGMT_VALIDATE_PTR) },
-    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME, OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR) },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
+            OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR
+        )
+    },
     ossl_dispatch!(),
 ];
 

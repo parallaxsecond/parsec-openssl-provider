@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use e2e_tests::*;
-use parsec_openssl_provider::parsec_openssl2::types::VOID_PTR;
 use parsec_openssl_provider::parsec_openssl2::openssl_returns_nonnull;
+use parsec_openssl_provider::parsec_openssl2::types::VOID_PTR;
 #[test]
 fn test_store_for_key() {
     let provider_path = String::from("../../target/debug/");
@@ -21,7 +21,9 @@ fn test_store_for_key() {
             key_name.as_ptr() as _,
             std::ptr::null_mut(),
             std::ptr::null_mut(),
-            opt as Option<unsafe extern "C" fn(*mut OSSL_STORE_INFO, VOID_PTR) -> *mut OSSL_STORE_INFO>,
+            opt as Option<
+                unsafe extern "C" fn(*mut OSSL_STORE_INFO, VOID_PTR) -> *mut OSSL_STORE_INFO,
+            >,
             std::ptr::null_mut(),
         ))
         .unwrap();
