@@ -2,7 +2,7 @@ use crate::openssl_bindings::{
     OSSL_PARAM_construct_end, OSSL_PARAM_construct_int, OSSL_PARAM_construct_octet_string,
     OSSL_PARAM_construct_utf8_string, OSSL_ALGORITHM, OSSL_CALLBACK, OSSL_CORE_BIO, OSSL_DISPATCH,
     OSSL_FUNC_STORE_ATTACH, OSSL_FUNC_STORE_CLOSE, OSSL_FUNC_STORE_EOF, OSSL_FUNC_STORE_LOAD,
-    OSSL_FUNC_STORE_OPEN, OSSL_OBJECT_PARAM_DATA, OSSL_OBJECT_PARAM_DATA_TYPE,
+    OSSL_FUNC_STORE_OPEN, OSSL_OBJECT_PARAM_REFERENCE, OSSL_OBJECT_PARAM_DATA_TYPE,
     OSSL_OBJECT_PARAM_TYPE, OSSL_OBJECT_PKEY, OSSL_PARAM, OSSL_PASSPHRASE_CALLBACK,
 };
 use crate::{
@@ -147,7 +147,7 @@ unsafe extern "C" fn parsec_provider_store_load(
                 0,
             ),
             OSSL_PARAM_construct_octet_string(
-                OSSL_OBJECT_PARAM_DATA.as_ptr() as _,
+                OSSL_OBJECT_PARAM_REFERENCE.as_ptr() as _,
                 key.name.as_ptr() as VOID_PTR,
                 key.name.len(),
             ),
