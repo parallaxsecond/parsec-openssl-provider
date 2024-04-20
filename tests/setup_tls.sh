@@ -13,17 +13,17 @@
 generate_ca_certs() {
     CA_DIRECTORY=$1
     CA_CERTIFICATE=${CA_DIRECTORY}/ca_cert.pem
-    CA_PRIV_KEY=${CA_DIRECTORY}/ca_private_key.pem
+    CA_PRIV_KEY=${CA_DIRECTORY}/ca_priv_key.pem
 
     # Generate a self signed certificate for the CA along with a key.
     if [ ! -f "${CA_CERTIFICATE}" ]; then
         mkdir -p "${CA_DIRECTORY}" 
         chmod 700 "${CA_DIRECTORY}"
 
-        openssl req -x509 -nodes -newkey rsa:2048 \
+        openssl req -x509 -nodes -days 1000 -newkey rsa:2048 \
             -keyout "${CA_PRIV_KEY}" \
             -out "${CA_CERTIFICATE}" \
-            -subj "/C=UK/ST=Parsec /L=Parsec/O=Parsec/CN=parsec.com" > /dev/null 2>&1
+            -subj "/C=UK/ST=Parsec /L=Parsec/O=Parsec/CN=parsec_ca.com" > /dev/null 2>&1
 
         if [ $? -ne 0 ]; then 
             echo "FAILED"
@@ -43,11 +43,11 @@ generate_server_certs() {
     SERVER_DIRECTORY=$1
     SERVER_CERTIFICATE=${SERVER_DIRECTORY}/server_cert.pem
     SERVER_CSR=${SERVER_DIRECTORY}/server_cert.csr
-    SERVER_PRIV_KEY=${SERVER_DIRECTORY}/server_private_key.pem
+    SERVER_PRIV_KEY=${SERVER_DIRECTORY}/server_priv_key.pem
 
     CA_DIRECTORY=$2
     CA_CERTIFICATE=${CA_DIRECTORY}/ca_cert.pem
-    CA_PRIV_KEY=${CA_DIRECTORY}/ca_private_key.pem
+    CA_PRIV_KEY=${CA_DIRECTORY}/ca_priv_key.pem
 
     if [ ! -f "${SERVER_CSR}" ]; then
         mkdir -p "${SERVER_DIRECTORY}" > /dev/null 2>&1
@@ -64,14 +64,14 @@ generate_server_certs() {
         openssl req -new \
             -key "${SERVER_PRIV_KEY}" \
             -out "${SERVER_CSR}" \
-            -subj "/C=UK/ST=Parsec /L=Parsec/O=Parsec/CN=parsec.com" > /dev/null 2>&1
+            -subj "/C=UK/ST=Parsec /L=Parsec/O=Parsec/CN=parsec_server.com" > /dev/null 2>&1
         if [ $? -ne 0 ]; then 
             echo "FAILED TO GENERATE CERTIFICATE REQUEST"
             exit 1
         fi
 
         # Generate certificate
-        openssl x509 -req -in "${SERVER_CSR}" \
+        openssl x509 -req -days 1000 -in "${SERVER_CSR}" \
             -CA "${CA_CERTIFICATE}" -CAkey "${CA_PRIV_KEY}" \
             -CAcreateserial -out "${SERVER_CERTIFICATE}" > /dev/null 2>&1
         if [ $? -ne 0 ]; then 
@@ -95,11 +95,11 @@ generate_client_certs() {
     CLIENT_DIRECTORY=$1
     CLIENT_CERTIFICATE=${CLIENT_DIRECTORY}/client_cert.pem
     CLIENT_CSR=${CLIENT_DIRECTORY}/client_cert.csr
-    CLIENT_PRIV_KEY=${CLIENT_DIRECTORY}/client_private_key.pem
+    CLIENT_PRIV_KEY=${CLIENT_DIRECTORY}/client_priv_key.pem
 
     CA_DIRECTORY=$2
     CA_CERTIFICATE=${CA_DIRECTORY}/ca_cert.pem
-    CA_PRIV_KEY=${CA_DIRECTORY}/ca_private_key.pem
+    CA_PRIV_KEY=${CA_DIRECTORY}/ca_priv_key.pem
 
     if [ ! -f "${CLIENT_CSR}" ]; then
         mkdir -p "${CLIENT_DIRECTORY}" > /dev/null 2>&1
@@ -116,14 +116,14 @@ generate_client_certs() {
         openssl req -new \
             -key "${CLIENT_PRIV_KEY}" \
             -out "${CLIENT_CSR}" \
-            -subj "/C=UK/ST=Parsec /L=Parsec/O=Parsec/CN=parsec.com" > /dev/null 2>&1
+            -subj "/C=UK/ST=Parsec /L=Parsec/O=Parsec/CN=parsec_client.com" > /dev/null 2>&1
         if [ $? -ne 0 ]; then 
             echo "FAILED TO GENERATE CERTIFICATE REQUEST"
             exit 1
         fi
 
         # Generate certificate
-        openssl x509 -req -in "${CLIENT_CSR}" \
+        openssl x509 -req -days 1000 -in "${CLIENT_CSR}" \
             -CA "${CA_CERTIFICATE}" -CAkey "${CA_PRIV_KEY}" \
             -CAcreateserial -out "${CLIENT_CERTIFICATE}" > /dev/null 2>&1
         if [ $? -ne 0 ]; then 
