@@ -15,21 +15,19 @@ use parsec_client::core::interface::operations::psa_key_attributes::{Attributes,
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 struct ParsecProviderSignatureContext {
     /* The key object is set in the signature context by calling OSSL_FUNC_signature_sign_init().
     Before calling OSSL_FUNC_signature_sign_init(), the key object itself should have been set up
     and initialized via keymgmt function calls.
     */
-    keyobj: Mutex<Option<Arc<ParsecProviderKeyObject>>>,
+    keyobj: Option<Arc<ParsecProviderKeyObject>>,
 }
 
 impl ParsecProviderSignatureContext {
     pub fn new() -> Self {
-        ParsecProviderSignatureContext {
-            keyobj: Mutex::new(None),
-        }
+        ParsecProviderSignatureContext { keyobj: None }
     }
 }
 
@@ -47,7 +45,7 @@ pub unsafe extern "C" fn parsec_provider_signature_newctx(
 ) -> VOID_PTR {
     // We are currently ignoring provctx and propq, so no need for input validation (checking for NULL, etc.)
 
-    let new_context = Arc::new(ParsecProviderSignatureContext::new());
+    let new_context = Arc::new(RwLock::new(ParsecProviderSignatureContext::new()));
 
     Arc::into_raw(new_context) as VOID_PTR
 }
@@ -58,7 +56,7 @@ pub unsafe extern "C" fn parsec_provider_signature_freectx(ctx: VOID_PTR) {
         return;
     }
 
-    let ctx_ptr = ctx as *const ParsecProviderSignatureContext;
+    let ctx_ptr = ctx as *const RwLock<ParsecProviderSignatureContext>;
     let arc_ctx = Arc::from_raw(ctx_ptr);
     // A strong_count of 1 should be guaranteed by OPENSSL, as it doesn't make sense to be calling
     // free when you are still using the ctx.
@@ -81,7 +79,7 @@ unsafe extern "C" fn parsec_provider_signature_sign_init(
         if ctx.is_null() || provkey.is_null() {
             return Err("Neither ctx nor provkey pointers should be NULL.".into());
         }
-        let sig_ctx_ptr = ctx as *const ParsecProviderSignatureContext;
+        let sig_ctx_ptr = ctx as *const RwLock<ParsecProviderSignatureContext>;
         Arc::increment_strong_count(sig_ctx_ptr);
         let arc_sig_ctx = Arc::from_raw(sig_ctx_ptr);
 
@@ -89,7 +87,8 @@ unsafe extern "C" fn parsec_provider_signature_sign_init(
         Arc::increment_strong_count(provkey_ptr);
         let arc_provkey = Arc::from_raw(provkey_ptr);
 
-        *(arc_sig_ctx.keyobj.lock().unwrap()) = Some(arc_provkey.clone());
+        let mut sig_writable = arc_sig_ctx.write().unwrap();
+        (*sig_writable).keyobj = Some(arc_provkey.clone());
         Ok(OPENSSL_SUCCESS)
     });
 
@@ -132,10 +131,10 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             return Err("Received unexpected NULL pointer as an argument.".into());
         }
 
-        Arc::increment_strong_count(ctx as *const ParsecProviderSignatureContext);
-        let arc_sig_ctx = Arc::from_raw(ctx as *const ParsecProviderSignatureContext);
+        Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
+        let arc_sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
 
-        let keyobj = match *arc_sig_ctx.keyobj.lock().unwrap() {
+        let keyobj = match (*arc_sig_ctx.read().unwrap()).keyobj {
             None => {
                 return Err("Key Object not set. This should be done through sign_init()".into())
             }
