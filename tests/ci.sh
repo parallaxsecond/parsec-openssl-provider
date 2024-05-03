@@ -88,7 +88,7 @@ if [ "$TEST" == "True" ]; then
     wait_for_service
 
     if [ "$CREATE_KEYS" == "True" ]; then
-        parsec-tool create-rsa-key -s -b 2048 -k PARSEC_TEST_RSA_KEY
+        parsec-tool create-rsa-key -r -b 2048 -k PARSEC_TEST_RSA_KEY
         parsec-tool create-ecc-key -k PARSEC_TEST_ECDSA_KEY
     fi
 
