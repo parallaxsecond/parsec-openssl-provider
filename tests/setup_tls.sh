@@ -94,8 +94,7 @@ generate_server_certs() {
 generate_client_certs() {
     CLIENT_DIRECTORY=$1
     CLIENT_CERTIFICATE=${CLIENT_DIRECTORY}/client_cert.pem
-    CLIENT_CSR=${CLIENT_DIRECTORY}/client_cert.csr
-    CLIENT_PRIV_KEY=${CLIENT_DIRECTORY}/client_priv_key.pem
+    CLIENT_CSR=${CLIENT_DIRECTORY}/parsec_cert.csr
 
     CA_DIRECTORY=$2
     CA_CERTIFICATE=${CA_DIRECTORY}/ca_cert.pem
@@ -105,27 +104,13 @@ generate_client_certs() {
         mkdir -p "${CLIENT_DIRECTORY}" > /dev/null 2>&1
         chmod 700 "${CLIENT_DIRECTORY}"
 
-        # Generate private key
-        openssl genrsa -out "${CLIENT_PRIV_KEY}" 2048 > /dev/null 2>&1
-        if [ $? -ne 0 ]; then 
-            echo "FAILED TO GENERATE KEY"
-            exit 1
-        fi
-
         # Generate certificate request
-        openssl req -new \
-            -key "${CLIENT_PRIV_KEY}" \
-            -out "${CLIENT_CSR}" \
-            -subj "/C=UK/ST=Parsec /L=Parsec/O=Parsec/CN=parsec_client.com" > /dev/null 2>&1
-        if [ $? -ne 0 ]; then 
-            echo "FAILED TO GENERATE CERTIFICATE REQUEST"
-            exit 1
-        fi
+        parsec-tool create-csr --cn parsec_client.com --l Parsec --c UK --st Parsec --o Parsec --key-name $3 > ${CLIENT_DIRECTORY}/parsec_cert.csr
 
         # Generate certificate
         openssl x509 -req -days 1000 -in "${CLIENT_CSR}" \
             -CA "${CA_CERTIFICATE}" -CAkey "${CA_PRIV_KEY}" \
-            -CAcreateserial -out "${CLIENT_CERTIFICATE}" > /dev/null 2>&1
+            -CAcreateserial -out "${CLIENT_CERTIFICATE}"
         if [ $? -ne 0 ]; then 
             echo "FAILED"
             exit 1
@@ -143,8 +128,9 @@ generate_ca_certs ./tls/ca
 echo -n "Generating server private key and certificate: "
 generate_server_certs ./tls/server ./tls/ca
 
-echo -n "Generating client private key and certificate: "
-generate_client_certs ./tls/client ./tls/ca
+echo -n "Generating client certificate: "
+generate_client_certs ./tls/client ./tls/ca PARSEC_TEST_RSA_KEY
+generate_client_certs ./tls/client ./tls/ca PARSEC_TEST_ECDSA_KEY
 
 echo -n "Generating fake certificate authority private key and certificate: "
 generate_ca_certs ./tls/fake_ca

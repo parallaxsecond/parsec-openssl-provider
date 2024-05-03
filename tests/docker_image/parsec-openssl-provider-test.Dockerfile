@@ -36,5 +36,7 @@ RUN git clone https://github.com/parallaxsecond/parsec.git --branch 1.3.0 \
 
 RUN git clone https://github.com/parallaxsecond/parsec-tool.git --branch main \
     && cd parsec-tool \
+    && cargo install patch-crate \
+    && cargo patch-crate \
     && cargo build \
     && cp target/debug/parsec-tool /opt/rust/bin/parsec-tool
