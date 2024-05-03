@@ -29,12 +29,14 @@ ENV PATH="/root/.cargo/bin:/opt/rust/bin:${PATH}"
 # For running tests Parsec is configured with the socket in /tmp/
 ENV PARSEC_SERVICE_ENDPOINT="unix:/tmp/parsec.sock"
 
-RUN git clone https://github.com/parallaxsecond/parsec.git --branch 1.3.0 \
+RUN git clone https://github.com/parallaxsecond/parsec.git --branch main \
     && cd parsec \
     && cargo build --features "mbed-crypto-provider,direct-authenticator"
 
 #TODO: This change is temporary and will be removed after a new parsec-tool version is released
 RUN git clone https://github.com/parallaxsecond/parsec-tool.git --branch main \
     && cd parsec-tool \
+    && cargo install patch-crate \
+    && cargo patch-crate \
     && cargo build \
     && cp target/debug/parsec-tool /opt/rust/bin/parsec-tool
