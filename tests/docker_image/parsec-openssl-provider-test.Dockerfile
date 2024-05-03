@@ -33,4 +33,8 @@ RUN git clone https://github.com/parallaxsecond/parsec.git --branch 1.3.0 \
     && cd parsec \
     && cargo build --features "mbed-crypto-provider,direct-authenticator"
 
-RUN cargo install parsec-tool
+#TODO: This change is temporary and will be removed after a new parsec-tool version is released
+RUN git clone https://github.com/parallaxsecond/parsec-tool.git --branch main \
+    && cd parsec-tool \
+    && cargo build \
+    && cp target/debug/parsec-tool /opt/rust/bin/parsec-tool
