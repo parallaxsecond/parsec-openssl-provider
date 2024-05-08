@@ -15,21 +15,19 @@ use parsec_client::core::interface::operations::psa_key_attributes::{Attributes,
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 struct ParsecProviderSignatureContext {
     /* The key object is set in the signature context by calling OSSL_FUNC_signature_sign_init().
     Before calling OSSL_FUNC_signature_sign_init(), the key object itself should have been set up
     and initialized via keymgmt function calls.
     */
-    keyobj: Mutex<Option<Arc<ParsecProviderKeyObject>>>,
+    keyobj: Option<Arc<RwLock<ParsecProviderKeyObject>>>,
 }
 
 impl ParsecProviderSignatureContext {
     pub fn new() -> Self {
-        ParsecProviderSignatureContext {
-            keyobj: Mutex::new(None),
-        }
+        ParsecProviderSignatureContext { keyobj: None }
     }
 }
 
@@ -47,7 +45,7 @@ pub unsafe extern "C" fn parsec_provider_signature_newctx(
 ) -> VOID_PTR {
     // We are currently ignoring provctx and propq, so no need for input validation (checking for NULL, etc.)
 
-    let new_context = Arc::new(ParsecProviderSignatureContext::new());
+    let new_context = Arc::new(RwLock::new(ParsecProviderSignatureContext::new()));
 
     Arc::into_raw(new_context) as VOID_PTR
 }
@@ -58,12 +56,11 @@ pub unsafe extern "C" fn parsec_provider_signature_freectx(ctx: VOID_PTR) {
         return;
     }
 
-    let ctx_ptr = ctx as *const ParsecProviderSignatureContext;
-    let arc_ctx = Arc::from_raw(ctx_ptr);
+    let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
     // A strong_count of 1 should be guaranteed by OPENSSL, as it doesn't make sense to be calling
     // free when you are still using the ctx.
-    assert_eq!(1, Arc::strong_count(&arc_ctx));
-    // When arc_ctx is dropped, the reference count is decremented and the memory is freed
+    assert_eq!(1, Arc::strong_count(&sig_ctx));
+    // When sig_ctx is dropped, the reference count is decremented and the memory is freed
 }
 
 /*
@@ -81,15 +78,14 @@ unsafe extern "C" fn parsec_provider_signature_sign_init(
         if ctx.is_null() || provkey.is_null() {
             return Err("Neither ctx nor provkey pointers should be NULL.".into());
         }
-        let sig_ctx_ptr = ctx as *const ParsecProviderSignatureContext;
-        Arc::increment_strong_count(sig_ctx_ptr);
-        let arc_sig_ctx = Arc::from_raw(sig_ctx_ptr);
+        Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
+        let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
 
-        let provkey_ptr = provkey as *const ParsecProviderKeyObject;
-        Arc::increment_strong_count(provkey_ptr);
-        let arc_provkey = Arc::from_raw(provkey_ptr);
+        Arc::increment_strong_count(provkey as *const RwLock<ParsecProviderKeyObject>);
+        let prov_key = Arc::from_raw(provkey as *const RwLock<ParsecProviderKeyObject>);
 
-        *(arc_sig_ctx.keyobj.lock().unwrap()) = Some(arc_provkey.clone());
+        let mut sig_writable = sig_ctx.write().unwrap();
+        sig_writable.keyobj = Some(prov_key.clone());
         Ok(OPENSSL_SUCCESS)
     });
 
@@ -132,18 +128,18 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             return Err("Received unexpected NULL pointer as an argument.".into());
         }
 
-        Arc::increment_strong_count(ctx as *const ParsecProviderSignatureContext);
-        let arc_sig_ctx = Arc::from_raw(ctx as *const ParsecProviderSignatureContext);
+        Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
+        let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
 
-        let keyobj = match *arc_sig_ctx.keyobj.lock().unwrap() {
+        let reader_sig_ctx = sig_ctx.read().unwrap();
+        let keyobj = match reader_sig_ctx.keyobj {
             None => {
                 return Err("Key Object not set. This should be done through sign_init()".into())
             }
-            Some(ref keyobj) => keyobj.clone(),
+            Some(ref keyobj) => keyobj.read().unwrap(),
         };
 
-        let key_name_binding = keyobj.get_key_name();
-        let key_name = match *key_name_binding {
+        let key_name = match keyobj.get_key_name() {
             None => return Err("Key name not set in the Key Object".into()),
             Some(ref name) => name,
         };

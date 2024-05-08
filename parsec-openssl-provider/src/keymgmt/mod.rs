@@ -15,19 +15,18 @@ use crate::{
 };
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, RwLock};
 
 pub struct ParsecProviderKeyObject {
     provctx: Arc<ParsecProviderContext>,
-    key_name: Mutex<Option<String>>,
+    key_name: Option<String>,
 }
 
 impl Clone for ParsecProviderKeyObject {
     fn clone(&self) -> Self {
-        let key_name = self.key_name.lock().unwrap();
         ParsecProviderKeyObject {
             provctx: self.provctx.clone(),
-            key_name: Mutex::new(key_name.clone()),
+            key_name: self.key_name.clone(),
         }
     }
 }
@@ -36,7 +35,7 @@ impl ParsecProviderKeyObject {
     pub fn new(provctx: Arc<ParsecProviderContext>) -> Self {
         ParsecProviderKeyObject {
             provctx: provctx.clone(),
-            key_name: None.into(),
+            key_name: None,
         }
     }
 
@@ -44,8 +43,8 @@ impl ParsecProviderKeyObject {
         self.provctx.clone()
     }
 
-    pub fn get_key_name(&self) -> MutexGuard<'_, Option<String>> {
-        self.key_name.lock().unwrap()
+    pub fn get_key_name(&self) -> &Option<String> {
+        &self.key_name
     }
 }
 
@@ -57,11 +56,13 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_new(provctx: VOID_PTR) -> VOID_PT
     if provctx.is_null() {
         return std::ptr::null_mut();
     }
-    let ctx = provctx as *const ParsecProviderContext;
-    Arc::increment_strong_count(ctx);
-    let context = Arc::from_raw(ctx);
 
-    Arc::into_raw(Arc::new(ParsecProviderKeyObject::new(context))) as VOID_PTR
+    Arc::increment_strong_count(provctx as *const ParsecProviderContext);
+    let prov_ctx = Arc::from_raw(provctx as *const ParsecProviderContext);
+
+    Arc::into_raw(Arc::new(RwLock::new(ParsecProviderKeyObject::new(
+        prov_ctx,
+    )))) as VOID_PTR
 }
 
 // should free the passed keydata
@@ -69,12 +70,11 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_free(keydata: VOID_PTR) {
     if keydata.is_null() {
         return;
     }
-    let keydata_ptr = keydata as *const ParsecProviderKeyObject;
-    let arc_keydata = Arc::from_raw(keydata_ptr);
+    let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
     // A strong_count of 1 should be guaranteed by OPENSSL, as it doesn't make sense to be calling
     // free when you are still using keydata.
-    assert_eq!(1, Arc::strong_count(&arc_keydata));
-    // When arc_keydata is dropped, the reference count is decremented and the memory is freed
+    assert_eq!(1, Arc::strong_count(&key_data));
+    // When key_data is dropped, the reference count is decremented and the memory is freed
 }
 
 /*
@@ -106,10 +106,6 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_set_params(
         if keydata.is_null() || params.is_null() {
             Err("Null pointer received as parameter".into())
         } else {
-            let keyobj = keydata as *mut ParsecProviderKeyObject;
-            Arc::increment_strong_count(keyobj);
-            let arc_keyobj = Arc::from_raw(keyobj);
-
             let param: openssl_bindings::OSSL_PARAM =
                 *openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
                     params,
@@ -119,8 +115,11 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_set_params(
             let key_name: &mut [u8] =
                 core::slice::from_raw_parts_mut(param.data as *mut u8, param.data_size);
 
-            let mut keyobj_key_name = arc_keyobj.key_name.lock().unwrap();
-            *keyobj_key_name = Some(std::str::from_utf8(key_name)?.to_string());
+            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+
+            let mut writer_key_data = key_data.write().unwrap();
+            writer_key_data.key_name = Some(std::str::from_utf8(key_name)?.to_string());
 
             Ok(OPENSSL_SUCCESS)
         }
@@ -147,11 +146,10 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_has(
         }
 
         if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
-            let keydata_ptr = keydata as *const ParsecProviderKeyObject;
-            Arc::increment_strong_count(keydata_ptr);
-            let arc_keydata = Arc::from_raw(keydata_ptr);
-            let key_name = arc_keydata.key_name.lock().unwrap();
-            if key_name.is_some() {
+            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let reader_key_data = key_data.read().unwrap();
+            if reader_key_data.key_name.is_some() {
                 Ok(OPENSSL_SUCCESS)
             } else {
                 Err("key name has not been set.".into())
@@ -171,15 +169,14 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_has(
 should import data indicated by selection into keydata with values taken from the OSSL_PARAM array params
 */
 pub unsafe extern "C" fn parsec_provider_kmgmt_import(
-    key_data: VOID_PTR,
+    keydata: VOID_PTR,
     selection: std::os::raw::c_int,
     params: *mut OSSL_PARAM,
 ) -> std::os::raw::c_int {
     if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
         let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_IMPORT), || {
-            let keydata_ptr = key_data as *const ParsecProviderKeyObject;
-            Arc::increment_strong_count(keydata_ptr);
-            let arc_keydata = Arc::from_raw(keydata_ptr);
+            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
             let param: openssl_bindings::OSSL_PARAM =
                 *openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
                     params,
@@ -191,7 +188,8 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import(
                 param.data_size,
             ));
 
-            let keys = arc_keydata
+            let reader_key_data = key_data.read().unwrap();
+            let keys = reader_key_data
                 .provctx
                 .get_client()
                 .list_keys()
@@ -206,7 +204,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import(
         match result {
             // Right now, settable params are the same as the import types, so it's ok to use this
             // function
-            Ok(_) => parsec_provider_kmgmt_set_params(key_data, params),
+            Ok(_) => parsec_provider_kmgmt_set_params(keydata, params),
             Err(()) => OPENSSL_ERROR,
         }
     } else {
@@ -249,16 +247,16 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_validate(
     }
 
     if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
-        let keydata_ptr = keydata as *const ParsecProviderKeyObject;
-        Arc::increment_strong_count(keydata_ptr);
-        let arc_keydata = Arc::from_raw(keydata_ptr);
-        let key_name = arc_keydata.key_name.lock().unwrap();
+        Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+        let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+        let reader_key_data = key_data.read().unwrap();
+        let key_name = (*reader_key_data).get_key_name();
         let result =
             super::r#catch(
                 Some(|| super::Error::PROVIDER_KEYMGMT_VALIDATE),
-                || match &*key_name {
+                || match key_name {
                     Some(name) => {
-                        let keys = arc_keydata
+                        let keys = reader_key_data
                             .provctx
                             .get_client()
                             .list_keys()
@@ -301,19 +299,16 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_match(
         }
 
         if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
-            let keydata1_ptr = keydata1 as *const ParsecProviderKeyObject;
-            let keydata2_ptr = keydata2 as *const ParsecProviderKeyObject;
+            Arc::increment_strong_count(keydata1 as *const RwLock<ParsecProviderKeyObject>);
+            Arc::increment_strong_count(keydata2 as *const RwLock<ParsecProviderKeyObject>);
 
-            Arc::increment_strong_count(keydata1_ptr);
-            Arc::increment_strong_count(keydata2_ptr);
+            let key_data1 = Arc::from_raw(keydata1 as *const RwLock<ParsecProviderKeyObject>);
+            let key_data2 = Arc::from_raw(keydata2 as *const RwLock<ParsecProviderKeyObject>);
 
-            let arc_keydata1 = Arc::from_raw(keydata1_ptr);
-            let arc_keydata2 = Arc::from_raw(keydata2_ptr);
+            let reader_key_data1 = key_data1.read().unwrap();
+            let reader_key_data2 = key_data2.read().unwrap();
 
-            let key_name1 = arc_keydata1.key_name.lock().unwrap();
-            let key_name2 = arc_keydata2.key_name.lock().unwrap();
-
-            if *key_name1 == *key_name2 {
+            if reader_key_data1.key_name == reader_key_data2.key_name {
                 Ok(OPENSSL_SUCCESS)
             } else {
                 Err("Key names do not match".into())
@@ -338,11 +333,11 @@ pub unsafe extern "C" fn parsec_provider_keymgmt_dup(
     selection: std::os::raw::c_int,
 ) -> VOID_PTR {
     if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
-        let keydata_from_ptr = keydata_from as *const ParsecProviderKeyObject;
-        Arc::increment_strong_count(keydata_from_ptr);
-        let arc_keydata_from = Arc::from_raw(keydata_from_ptr);
+        Arc::increment_strong_count(keydata_from as *const RwLock<ParsecProviderKeyObject>);
+        let key_data_from = Arc::from_raw(keydata_from as *const RwLock<ParsecProviderKeyObject>);
 
-        let duplicate: ParsecProviderKeyObject = (*arc_keydata_from).clone();
+        let reader_key_data_from = key_data_from.read().unwrap();
+        let duplicate: RwLock<ParsecProviderKeyObject> = RwLock::new(reader_key_data_from.clone());
         Arc::into_raw(Arc::new(duplicate)) as VOID_PTR
     } else {
         std::ptr::null_mut()
@@ -763,13 +758,12 @@ fn test_kmgmt_dup() {
     let duplicated =
         unsafe { parsec_provider_keymgmt_dup(keyobj, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32) };
 
-    let duplicated_ptr = duplicated as *const ParsecProviderKeyObject;
     unsafe {
-        Arc::increment_strong_count(duplicated_ptr);
-        let arc_duplicated = Arc::from_raw(duplicated_ptr);
-        let duplicated_key_name = arc_duplicated.key_name.lock().unwrap();
+        Arc::increment_strong_count(duplicated as *const RwLock<ParsecProviderKeyObject>);
+        let arc_duplicated = Arc::from_raw(duplicated as *const RwLock<ParsecProviderKeyObject>);
+        let reader_dup = arc_duplicated.read().unwrap();
 
-        assert_eq!(*duplicated_key_name, Some(my_key_name))
+        assert_eq!(reader_dup.key_name, Some(my_key_name))
     }
 
     unsafe {
