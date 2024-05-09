@@ -5,8 +5,8 @@ use crate::openssl_bindings::{
     OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_FREE,
     OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
     OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
-    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS,
-    OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
+    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM,
+    OSSL_PARAM_UTF8_PTR,
 };
 use crate::{
     ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
@@ -236,51 +236,6 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import_types(
     }
 }
 
-// Should check if the keydata contains valid data subsets indicated by selection.
-pub unsafe extern "C" fn parsec_provider_kmgmt_validate(
-    keydata: VOID_PTR,
-    selection: std::os::raw::c_int,
-    _checktype: std::os::raw::c_int,
-) -> std::os::raw::c_int {
-    if keydata.is_null() {
-        return OPENSSL_ERROR;
-    }
-
-    if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
-        Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
-        let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
-        let reader_key_data = key_data.read().unwrap();
-        let key_name = (*reader_key_data).get_key_name();
-        let result =
-            super::r#catch(
-                Some(|| super::Error::PROVIDER_KEYMGMT_VALIDATE),
-                || match key_name {
-                    Some(name) => {
-                        let keys = reader_key_data
-                            .provctx
-                            .get_client()
-                            .list_keys()
-                            .map_err(|_| "Failed to list Parsec Provider's Keys".to_string())?;
-
-                        if keys.iter().any(|kinfo| kinfo.name == name.as_str()) {
-                            Ok(OPENSSL_SUCCESS)
-                        } else {
-                            Err("Specified Key not found in the Parsec Provider".into())
-                        }
-                    }
-                    None => Err("keydata to validate failed: Key name not specified".into()),
-                },
-            );
-
-        match result {
-            Ok(result) => result,
-            Err(()) => OPENSSL_ERROR,
-        }
-    } else {
-        OPENSSL_SUCCESS
-    }
-}
-
 /*
 should check if the data subset indicated by selection in keydata1 and keydata2 match.
 It is assumed that the caller has ensured that keydata1 and keydata2 are both owned by the implementation of this function.
@@ -354,8 +309,6 @@ pub type KeyMgmtImportTypesPtr = unsafe extern "C" fn(std::os::raw::c_int) -> *c
 pub type KeyMgmtSetParamsPtr =
     unsafe extern "C" fn(VOID_PTR, *mut OSSL_PARAM) -> std::os::raw::c_int;
 pub type KeyMgmtSettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
-pub type KeyMgmtValidatePtr =
-    unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int, std::os::raw::c_int) -> std::os::raw::c_int;
 pub type KeyMgmtMatchPtr =
     unsafe extern "C" fn(VOID_PTR, VOID_PTR, std::os::raw::c_int) -> std::os::raw::c_int;
 
@@ -369,10 +322,9 @@ const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
-const OSSL_FUNC_KEYMGMT_VALIDATE_PTR: KeyMgmtValidatePtr = parsec_provider_kmgmt_validate;
 const OSSL_FUNC_KEYMGMT_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_kmgmt_match;
 
-const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
+const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 10] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
@@ -397,7 +349,6 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
         )
     },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_MATCH_PTR) },
-    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_FUNC_KEYMGMT_VALIDATE_PTR) },
     ossl_dispatch!(),
 ];
 
