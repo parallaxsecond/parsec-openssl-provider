@@ -571,6 +571,63 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_match(
 }
 
 /*
+should check if the data subset indicated by selection in keydata1 and keydata2 match.
+It is assumed that the caller has ensured that keydata1 and keydata2 are both owned by the implementation of this function.
+*/
+pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_match(
+    keydata1: VOID_PTR,
+    keydata2: VOID_PTR,
+    selection: std::os::raw::c_int,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_MATCH), || {
+        if keydata1 == keydata2 {
+            return Ok(OPENSSL_SUCCESS);
+        }
+        if keydata1.is_null() ^ keydata2.is_null() {
+            return Err("One of the keydatas to compare is null".into());
+        }
+
+        if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
+            Arc::increment_strong_count(keydata1 as *const RwLock<ParsecProviderKeyObject>);
+            Arc::increment_strong_count(keydata2 as *const RwLock<ParsecProviderKeyObject>);
+
+            let key_data1 = Arc::from_raw(keydata1 as *const RwLock<ParsecProviderKeyObject>);
+            let key_data2 = Arc::from_raw(keydata2 as *const RwLock<ParsecProviderKeyObject>);
+
+            let reader_key_data1 = key_data1.read().unwrap();
+            let reader_key_data2 = key_data2.read().unwrap();
+
+            match (
+                reader_key_data1.get_ecdsa_key(),
+                reader_key_data2.get_ecdsa_key(),
+            ) {
+                (Some(a), Some(b)) => {
+                    let curve = EcCurve::NistP256.as_nid();
+                    let mut group = openssl::ec::EcGroup::from_curve_name(curve)?;
+                    group.set_asn1_flag(openssl::ec::Asn1Flag::NAMED_CURVE);
+
+                    let mut big_num_context = openssl::bn::BigNumContext::new()?;
+                    let are_equal = a.eq(group.as_ref(), b, &mut big_num_context).map_err(|e| format!("Failed to match keys: {}", e))?;
+                    if are_equal {
+                        Ok(OPENSSL_SUCCESS)
+                    } else {
+                        Err("Keys do not match".into())
+                    }
+                },
+                _ => Err("Keys do not match".into()),
+            }
+        } else {
+            Err("Keys do not match".into())
+        }
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
+/*
 should duplicate data subsets indicated by selection or the whole key data keydata_from and create a new provider side
 key object with the data.
 */
@@ -644,6 +701,7 @@ const OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR: KeyMgmtGettableParamsPtr =
     parsec_provider_kmgmt_gettable_params;
 
 const OSSL_FUNC_KEYMGMT_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_kmgmt_match;
+const OSSL_FUNC_KEYMGMT_ECDSA_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_ecdsa_kmgmt_match;
 
 const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 13] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
@@ -732,7 +790,7 @@ const PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL: [OSSL_DISPATCH; 12] = [
             OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR
         )
     },
-    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_MATCH_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_ECDSA_MATCH_PTR) },
     ossl_dispatch!(),
 ];
 
