@@ -12,8 +12,16 @@ use parsec_client::core::interface::operations::psa_algorithm::Hash;
 use parsec_client::core::interface::operations::psa_key_attributes::{Attributes, EccFamily, Type};
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
+use picky_asn1::wrapper::IntegerAsn1;
+use serde::{Deserialize, Serialize};
 use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
+
+#[derive(Serialize, Deserialize)]
+struct EccSignature {
+    r: IntegerAsn1,
+    s: IntegerAsn1,
+}
 
 struct ParsecProviderSignatureContext {
     /* The key object is set in the signature context by calling OSSL_FUNC_signature_sign_init().
@@ -88,7 +96,7 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign(
     tbs: *const std::os::raw::c_uchar,
     tbslen: std::os::raw::c_uint,
 ) -> std::os::raw::c_int {
-    let result = super::r#catch(Some(|| super::Error::PROVIDER_SIGNATURE_SIGN), || {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_SIGNATURE_DIGEST_SIGN), || {
         if ctx.is_null() || siglen.is_null() {
             return Err("Received unexpected NULL pointer as an argument.".into());
         }
@@ -155,19 +163,23 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign(
             .psa_hash_compute(Hash::Sha256, tbs_slice)
             .map_err(|e| format!("Parsec Client failed to hash: {:?}", e))?;
 
-        let sign_res: Vec<u8> = key_data
+        let mut sign_res: Vec<u8> = key_data
             .get_provctx()
             .get_client()
             .psa_sign_hash(key_name, &hash_res, sign_algorithm)
             .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
 
-        if siglength != sign_res.len() {
-            Err(format!("Unexpected signature length: {}", sign_res.len()).into())
-        } else {
-            std::ptr::copy(sign_res.as_ptr(), sig, sign_res.len());
-            *siglen = sign_res.len() as u32;
-            Ok(OPENSSL_SUCCESS)
+        if sign_algorithm.is_ecc_alg() {
+            let s = IntegerAsn1::from_bytes_be_unsigned(sign_res.split_off(sign_res.len() / 2));
+            sign_res = picky_asn1_der::to_vec(&EccSignature {
+                r: IntegerAsn1::from_bytes_be_unsigned(sign_res),
+                s,
+            })
+            .map_err(|e| format!("Failed to convert ECC Signature: {:?}", e))?;
         }
+        std::ptr::copy(sign_res.as_ptr(), sig, sign_res.len());
+        *siglen = sign_res.len() as u32;
+        Ok(OPENSSL_SUCCESS)
     });
 
     match result {
