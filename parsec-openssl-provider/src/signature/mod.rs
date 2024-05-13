@@ -2,19 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::keymgmt::ParsecProviderKeyObject;
-use crate::openssl_bindings::{
-    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_NEWCTX,
-    OSSL_FUNC_SIGNATURE_SIGN, OSSL_FUNC_SIGNATURE_SIGN_INIT, OSSL_PARAM,
-};
+use crate::openssl_bindings::*;
 use crate::{
     PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
     PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_RSA_NAME,
 };
 use parsec_client::core::interface::operations::psa_algorithm::Algorithm;
+use parsec_client::core::interface::operations::psa_algorithm::Hash;
 use parsec_client::core::interface::operations::psa_key_attributes::{Attributes, EccFamily, Type};
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
-
+use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
 
 struct ParsecProviderSignatureContext {
@@ -63,38 +61,6 @@ pub unsafe extern "C" fn parsec_provider_signature_freectx(ctx: VOID_PTR) {
     // When sig_ctx is dropped, the reference count is decremented and the memory is freed
 }
 
-/*
-Initialises a context for signing given a provider side signature context in the ctx parameter, and a pointer to a
-provider key object in the provkey parameter. The params, if not NULL, should be set on the context in a manner similar
-to using OSSL_FUNC_signature_set_ctx_params(). The key object should have been previously generated, loaded or imported
-into the provider using the key management (OSSL_OP_KEYMGMT) operation.
-*/
-unsafe extern "C" fn parsec_provider_signature_sign_init(
-    ctx: VOID_PTR,
-    provkey: VOID_PTR,
-    _params: *const OSSL_PARAM,
-) -> std::os::raw::c_int {
-    let result = super::r#catch(Some(|| super::Error::PROVIDER_SIGNATURE_SIGN_INIT), || {
-        if ctx.is_null() || provkey.is_null() {
-            return Err("Neither ctx nor provkey pointers should be NULL.".into());
-        }
-        Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
-        let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
-
-        Arc::increment_strong_count(provkey as *const RwLock<ParsecProviderKeyObject>);
-        let prov_key = Arc::from_raw(provkey as *const RwLock<ParsecProviderKeyObject>);
-
-        let mut sig_writable = sig_ctx.write().unwrap();
-        sig_writable.keyobj = Some(prov_key.clone());
-        Ok(OPENSSL_SUCCESS)
-    });
-
-    match result {
-        Ok(result) => result,
-        Err(()) => OPENSSL_ERROR,
-    }
-}
-
 fn get_signature_len(key_attrs: Attributes) -> Result<usize, String> {
     match key_attrs.key_type {
         Type::RsaKeyPair => Ok(key_attrs.bits / 8),
@@ -109,13 +75,12 @@ fn get_signature_len(key_attrs: Attributes) -> Result<usize, String> {
 }
 
 /*
-performs the actual signing itself. A previously initialised signature context is passed in the ctx parameter. The data
-to be signed is pointed to be the tbs parameter which is tbslen bytes long. Unless sig is NULL, the signature should be
-written to the location pointed to by the sig parameter and it should not exceed sigsize bytes in length. The length of
-the signature should be written to *siglen. If sig is NULL then the maximum length of the signature should be written
-to *siglen.
+implements a "one shot" digest sign operation previously started through
+OSSL_FUNC_signature_digeset_sign_init(). A previously initialised signature
+context is passed in the ctx parameter. The data to be signed is in tbs which
+should be tbslen bytes long.
 */
-unsafe extern "C" fn parsec_provider_signature_sign(
+unsafe extern "C" fn parsec_provider_signature_digest_sign(
     ctx: VOID_PTR,
     sig: *mut std::os::raw::c_uchar,
     siglen: *mut std::os::raw::c_uint,
@@ -132,19 +97,19 @@ unsafe extern "C" fn parsec_provider_signature_sign(
         let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
 
         let reader_sig_ctx = sig_ctx.read().unwrap();
-        let keyobj = match reader_sig_ctx.keyobj {
+        let key_data = match reader_sig_ctx.keyobj {
             None => {
                 return Err("Key Object not set. This should be done through sign_init()".into())
             }
             Some(ref keyobj) => keyobj.read().unwrap(),
         };
 
-        let key_name = match keyobj.get_key_name() {
+        let key_name = match key_data.get_key_name() {
             None => return Err("Key name not set in the Key Object".into()),
             Some(ref name) => name,
         };
 
-        let key_attributes = keyobj
+        let key_attributes = key_data
             .get_provctx()
             .get_client()
             .key_attributes(key_name)
@@ -184,10 +149,16 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             }
         };
 
-        let sign_res: Vec<u8> = keyobj
+        let hash_res: Vec<u8> = key_data
             .get_provctx()
             .get_client()
-            .psa_sign_hash(key_name, tbs_slice, sign_algorithm)
+            .psa_hash_compute(Hash::Sha256, tbs_slice)
+            .map_err(|e| format!("Parsec Client failed to hash: {:?}", e))?;
+
+        let sign_res: Vec<u8> = key_data
+            .get_provctx()
+            .get_client()
+            .psa_sign_hash(key_name, &hash_res, sign_algorithm)
             .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
 
         if siglength != sign_res.len() {
@@ -205,10 +176,120 @@ unsafe extern "C" fn parsec_provider_signature_sign(
     }
 }
 
+unsafe extern "C" fn parsec_provider_signature_digest_sign_init(
+    ctx: VOID_PTR,
+    mdname: *const std::os::raw::c_char,
+    provkey: VOID_PTR,
+    params: *const OSSL_PARAM,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_SIGNATURE_SIGN_INIT), || {
+        if ctx.is_null() || provkey.is_null() {
+            return Err("Neither ctx nor provkey pointers should be NULL.".into());
+        }
+
+        Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
+        let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
+        let mut reader_sig_ctx = sig_ctx.write().unwrap();
+        Arc::increment_strong_count(provkey as *const RwLock<ParsecProviderKeyObject>);
+        let prov_key = Arc::from_raw(provkey as *const RwLock<ParsecProviderKeyObject>);
+
+        reader_sig_ctx.keyobj = Some(prov_key.clone());
+
+        // Currently we only support SHA256 hash function.
+        // Return error if any other function is selected.
+        if let Ok(hash_function) = CStr::from_ptr(mdname).to_str() {
+            if hash_function != "SHA256" && hash_function != "SHA2-256" {
+                return Err("Invalid hash function".into());
+            }
+        }
+
+        Ok(parsec_provider_signature_set_params(ctx, params))
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
+unsafe extern "C" fn parsec_provider_signature_settable_params(
+    _ctx: VOID_PTR,
+    _provkey: VOID_PTR,
+) -> *const OSSL_PARAM {
+    println!("In func parsec_provider_signature_settable_params");
+    static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+    static mut SIGCTX_GETTABLE_TABLE: [OSSL_PARAM; 3] = [ossl_param!(); 3];
+
+    ONCE_INIT.call_once(|| {
+        SIGCTX_GETTABLE_TABLE = [
+            ossl_param!(OSSL_SIGNATURE_PARAM_PAD_MODE, OSSL_PARAM_UTF8_STRING),
+            ossl_param!(OSSL_SIGNATURE_PARAM_PSS_SALTLEN, OSSL_PARAM_UTF8_STRING),
+            ossl_param!(),
+        ];
+    });
+    SIGCTX_GETTABLE_TABLE.as_ptr() as _
+}
+
+/*
+Sets the context parameters for RSA signature
+*/
+pub unsafe extern "C" fn parsec_provider_signature_set_params(
+    _keydata: VOID_PTR,
+    params: *const OSSL_PARAM,
+) -> std::os::raw::c_int {
+    // Currently we only support PSS paddding mode with a Salt length of 32 bytes equivalent to the
+    // hash length. So we only check for these values here and not update the signature context
+    // object with it.
+
+    // Check the padding mode
+    if let Ok(param) = openssl_returns_nonnull_const(openssl_bindings::OSSL_PARAM_locate_const(
+        params,
+        OSSL_SIGNATURE_PARAM_PAD_MODE.as_ptr() as _,
+    )) {
+        if (*param).data_type == OSSL_PARAM_UTF8_STRING {
+            let pad_mode: &[u8] =
+                core::slice::from_raw_parts((*param).data as *mut u8, (*param).data_size);
+            if pad_mode != OSSL_PKEY_RSA_PAD_MODE_PSS {
+                return OPENSSL_ERROR;
+            }
+        }
+        if (*param).data_type == OSSL_PARAM_INTEGER {
+            let pad_mode: &[u8] =
+                core::slice::from_raw_parts((*param).data as *mut u8, (*param).data_size);
+            if pad_mode[0] != 6 {
+                return OPENSSL_ERROR;
+            }
+        }
+    }
+
+    // Check the salt length
+    if let Ok(param) = openssl_returns_nonnull_const(openssl_bindings::OSSL_PARAM_locate_const(
+        params,
+        OSSL_SIGNATURE_PARAM_PSS_SALTLEN.as_ptr() as _,
+    )) {
+        if (*param).data_type == OSSL_PARAM_UTF8_STRING {
+            let salt_len: &[u8] =
+                core::slice::from_raw_parts((*param).data as *const u8, (*param).data_size);
+            if *salt_len != OSSL_PKEY_RSA_PSS_SALT_LEN_DIGEST[..6] {
+                return OPENSSL_ERROR;
+            }
+        }
+        if (*param).data_type == OSSL_PARAM_INTEGER {
+            let salt_len: &mut [u8] =
+                core::slice::from_raw_parts_mut((*param).data as *mut u8, (*param).data_size);
+            if salt_len[0] != 32 {
+                return OPENSSL_ERROR;
+            }
+        }
+    }
+
+    OPENSSL_SUCCESS
+}
+
 pub type SignatureNewCtxPtr =
     unsafe extern "C" fn(VOID_PTR, *const std::os::raw::c_char) -> VOID_PTR;
 pub type SignatureFreeCtxPtr = unsafe extern "C" fn(VOID_PTR);
-pub type SignatureSignPtr = unsafe extern "C" fn(
+pub type SignatureDigestSignPtr = unsafe extern "C" fn(
     VOID_PTR,
     *mut std::os::raw::c_uchar,
     *mut std::os::raw::c_uint,
@@ -216,22 +297,57 @@ pub type SignatureSignPtr = unsafe extern "C" fn(
     *const std::os::raw::c_uchar,
     std::os::raw::c_uint,
 ) -> std::os::raw::c_int;
-pub type SignatureSignInitPtr =
-    unsafe extern "C" fn(VOID_PTR, VOID_PTR, *const OSSL_PARAM) -> std::os::raw::c_int;
+
+pub type SignatureDigestSignInitPtr = unsafe extern "C" fn(
+    VOID_PTR,
+    *const std::os::raw::c_char,
+    VOID_PTR,
+    *const OSSL_PARAM,
+) -> std::os::raw::c_int;
+
+const OSSL_FUNC_SIGNATURE_SETTABLE_PARAMS_PTR: SignatureSettableParamsPtr =
+    parsec_provider_signature_settable_params;
+
+const OSSL_FUNC_SIGNATURE_SET_PARAMS_PTR: SignatureSetParamsPtr =
+    parsec_provider_signature_set_params;
+pub type SignatureSettableParamsPtr = unsafe extern "C" fn(VOID_PTR, VOID_PTR) -> *const OSSL_PARAM;
+
+pub type SignatureSetParamsPtr =
+    unsafe extern "C" fn(VOID_PTR, *const OSSL_PARAM) -> std::os::raw::c_int;
 
 const OSSL_FUNC_SIGNATURE_NEWCTX_PTR: SignatureNewCtxPtr = parsec_provider_signature_newctx;
 const OSSL_FUNC_SIGNATURE_FREECTX_PTR: SignatureFreeCtxPtr = parsec_provider_signature_freectx;
-const OSSL_FUNC_SIGNATURE_SIGN_PTR: SignatureSignPtr = parsec_provider_signature_sign;
-const OSSL_FUNC_SIGNATURE_SIGN_INIT_PTR: SignatureSignInitPtr = parsec_provider_signature_sign_init;
+const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR: SignatureDigestSignPtr =
+    parsec_provider_signature_digest_sign;
 
-const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
+const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT_PTR: SignatureDigestSignInitPtr =
+    parsec_provider_signature_digest_sign_init;
+
+const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 7] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_FREECTX_PTR) },
-    unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_SIGN, OSSL_FUNC_SIGNATURE_SIGN_PTR) },
     unsafe {
         ossl_dispatch!(
-            OSSL_FUNC_SIGNATURE_SIGN_INIT,
-            OSSL_FUNC_SIGNATURE_SIGN_INIT_PTR
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN,
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT,
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_SETTABLE_CTX_PARAMS,
+            OSSL_FUNC_SIGNATURE_SETTABLE_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_SET_CTX_PARAMS,
+            OSSL_FUNC_SIGNATURE_SET_PARAMS_PTR
         )
     },
     ossl_dispatch!(),
