@@ -356,6 +356,29 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import_types(
 }
 
 /*
+should return an array of descriptor OSSL_PARAM for data indicated by selection, for parameters that
+OSSL_FUNC_keymgmt_import() can handle
+*/
+pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_import_types(
+    selection: std::os::raw::c_int,
+) -> *const OSSL_PARAM {
+    if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
+        static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+        static mut IMPORT_TYPES_TABLE: [OSSL_PARAM; 1] = [ossl_param!(); 1];
+
+        ONCE_INIT.call_once(|| {
+            IMPORT_TYPES_TABLE = [
+                ossl_param!(),
+            ];
+        });
+
+        IMPORT_TYPES_TABLE.as_ptr()
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+/*
 should check if the data subset indicated by selection in keydata1 and keydata2 match.
 It is assumed that the caller has ensured that keydata1 and keydata2 are both owned by the implementation of this function.
 */
@@ -460,6 +483,8 @@ const OSSL_FUNC_KEYMGMT_HAS_PTR: KeyMgmtHasPtr = parsec_provider_kmgmt_has;
 const OSSL_FUNC_KEYMGMT_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_import;
 const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
     parsec_provider_kmgmt_import_types;
+const OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
+    parsec_provider_ecdsa_kmgmt_import_types;
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
 const OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR: KeyMgmtGetParamsPtr = parsec_provider_kmgmt_get_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
@@ -524,7 +549,7 @@ const PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL: [OSSL_DISPATCH; 13] = [
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
-            OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR
+            OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_TYPES_PTR
         )
     },
     unsafe {
