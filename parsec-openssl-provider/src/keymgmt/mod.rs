@@ -115,13 +115,14 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_gettable_params(
     _provctx: VOID_PTR,
 ) -> *const OSSL_PARAM {
     static ONCE_INIT: std::sync::Once = std::sync::Once::new();
-    static mut KEYMGMT_GETTABLE_TABLE: [OSSL_PARAM; 4] = [ossl_param!(); 4];
+    static mut KEYMGMT_GETTABLE_TABLE: [OSSL_PARAM; 5] = [ossl_param!(); 5];
 
     ONCE_INIT.call_once(|| {
         KEYMGMT_GETTABLE_TABLE = [
             ossl_param!(OSSL_PKEY_PARAM_BITS, OSSL_PARAM_INTEGER),
             ossl_param!(OSSL_PKEY_PARAM_SECURITY_BITS, OSSL_PARAM_INTEGER),
             ossl_param!(OSSL_PKEY_PARAM_MAX_SIZE, OSSL_PARAM_INTEGER),
+            ossl_param!(OSSL_PKEY_PARAM_GROUP_NAME, OSSL_PARAM_UTF8_STRING),
             ossl_param!(),
         ];
     });

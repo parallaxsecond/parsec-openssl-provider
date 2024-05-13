@@ -220,16 +220,39 @@ unsafe extern "C" fn parsec_provider_signature_settable_params(
     _provkey: VOID_PTR,
 ) -> *const OSSL_PARAM {
     static ONCE_INIT: std::sync::Once = std::sync::Once::new();
-    static mut SIGCTX_GETTABLE_TABLE: [OSSL_PARAM; 3] = [ossl_param!(); 3];
+    static mut SIGCTX_SETTABLE_TABLE: [OSSL_PARAM; 3] = [ossl_param!(); 3];
 
     ONCE_INIT.call_once(|| {
-        SIGCTX_GETTABLE_TABLE = [
+        SIGCTX_SETTABLE_TABLE = [
             ossl_param!(OSSL_SIGNATURE_PARAM_PAD_MODE, OSSL_PARAM_UTF8_STRING),
             ossl_param!(OSSL_SIGNATURE_PARAM_PSS_SALTLEN, OSSL_PARAM_UTF8_STRING),
             ossl_param!(),
         ];
     });
-    SIGCTX_GETTABLE_TABLE.as_ptr() as _
+    SIGCTX_SETTABLE_TABLE.as_ptr() as _
+}
+
+unsafe extern "C" fn parsec_provider_signature_ecdsa_settable_params(
+    _ctx: VOID_PTR,
+    _provkey: VOID_PTR,
+) -> *const OSSL_PARAM {
+    static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+    static mut SIGCTX_SETTABLE_TABLE: [OSSL_PARAM; 1] = [ossl_param!(); 1];
+
+    ONCE_INIT.call_once(|| {
+        SIGCTX_SETTABLE_TABLE = [ossl_param!()];
+    });
+    SIGCTX_SETTABLE_TABLE.as_ptr() as _
+}
+
+/*
+Sets the context parameters for ECDSA signature
+*/
+pub unsafe extern "C" fn parsec_provider_signature_ecdsa_set_params(
+    _keydata: VOID_PTR,
+    _params: *const OSSL_PARAM,
+) -> std::os::raw::c_int {
+    OPENSSL_SUCCESS
 }
 
 /*
@@ -309,9 +332,12 @@ pub type SignatureDigestSignInitPtr = unsafe extern "C" fn(
 
 const OSSL_FUNC_SIGNATURE_SETTABLE_PARAMS_PTR: SignatureSettableParamsPtr =
     parsec_provider_signature_settable_params;
-
+const OSSL_FUNC_SIGNATURE_ECDSA_SETTABLE_PARAMS_PTR: SignatureSettableParamsPtr =
+    parsec_provider_signature_ecdsa_settable_params;
 const OSSL_FUNC_SIGNATURE_SET_PARAMS_PTR: SignatureSetParamsPtr =
     parsec_provider_signature_set_params;
+const OSSL_FUNC_SIGNATURE_ECDSA_SET_PARAMS_PTR: SignatureSetParamsPtr =
+    parsec_provider_signature_ecdsa_set_params;
 pub type SignatureSettableParamsPtr = unsafe extern "C" fn(VOID_PTR, VOID_PTR) -> *const OSSL_PARAM;
 
 pub type SignatureSetParamsPtr =
@@ -355,11 +381,41 @@ const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 7] = [
     ossl_dispatch!(),
 ];
 
+const PARSEC_PROVIDER_SIGN_ECDSA_IMPL: [OSSL_DISPATCH; 7] = [
+    unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_FREECTX_PTR) },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN,
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT,
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_SETTABLE_CTX_PARAMS,
+            OSSL_FUNC_SIGNATURE_ECDSA_SETTABLE_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_SET_CTX_PARAMS,
+            OSSL_FUNC_SIGNATURE_ECDSA_SET_PARAMS_PTR
+        )
+    },
+    ossl_dispatch!(),
+];
+
 pub const PARSEC_PROVIDER_SIGNATURE: [OSSL_ALGORITHM; 3] = [
     ossl_algorithm!(
         PARSEC_PROVIDER_ECDSA_NAME,
         PARSEC_PROVIDER_DFLT_PROPERTIES,
-        PARSEC_PROVIDER_SIGN_IMPL,
+        PARSEC_PROVIDER_SIGN_ECDSA_IMPL,
         PARSEC_PROVIDER_DESCRIPTION_ECDSA
     ),
     ossl_algorithm!(
