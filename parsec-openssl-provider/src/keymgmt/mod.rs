@@ -17,6 +17,7 @@ pub struct ParsecProviderKeyObject {
     provctx: Arc<ParsecProviderContext>,
     key_name: Option<String>,
     rsa_key: Option<RsaPublicKey>,
+    ecdsa_key: Option<openssl::ec::EcPoint>,
 }
 
 impl Clone for ParsecProviderKeyObject {
@@ -25,6 +26,7 @@ impl Clone for ParsecProviderKeyObject {
             provctx: self.provctx.clone(),
             key_name: self.key_name.clone(),
             rsa_key: self.rsa_key.clone(),
+            ecdsa_key: None,
         }
     }
 }
@@ -35,6 +37,7 @@ impl ParsecProviderKeyObject {
             provctx: provctx.clone(),
             key_name: None,
             rsa_key: None,
+            ecdsa_key: None,
         }
     }
 
@@ -48,6 +51,11 @@ impl ParsecProviderKeyObject {
 
     pub fn get_rsa_key(&self) -> &Option<RsaPublicKey> {
         &self.rsa_key
+    }
+
+    #[allow(dead_code)]
+    pub fn get_ecdsa_key(&self) -> &Option<openssl::ec::EcPoint> {
+        &self.ecdsa_key
     }
 }
 
@@ -262,6 +270,113 @@ unsafe fn parsec_rsa_set_public_params(params: *mut OSSL_PARAM) -> Result<RsaPub
 }
 
 /*
+returns a vector containing an ECDSA public key in form of a vector (Octect string into a vector)
+*/
+unsafe fn parsec_ecdsa_set_public_params(
+    params: *mut OSSL_PARAM,
+) -> Result<openssl::ec::EcPoint, String> {
+    let octect_param: openssl_bindings::OSSL_PARAM =
+        *openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+            params,
+            OSSL_PKEY_PARAM_PUB_KEY.as_ptr() as *const std::os::raw::c_char,
+        ))
+        .map_err(|e| format!("Failed to set ECDSA public params (OctetString): {}", e))?;
+
+    let octect =
+        slice::from_raw_parts(octect_param.data as *const u8, octect_param.data_size).to_vec();
+
+    let curve = EcCurve::NistP256.as_nid();
+    let mut group =
+        openssl::ec::EcGroup::from_curve_name(curve).map_err(|_| "Can't find curve".to_string())?;
+    group.set_asn1_flag(openssl::ec::Asn1Flag::NAMED_CURVE);
+
+    let mut big_num_context =
+        openssl::bn::BigNumContext::new().map_err(|_| "Can't create context".to_string())?;
+    let point = openssl::ec::EcPoint::from_bytes(&group, &octect, &mut big_num_context)
+        .map_err(|e| format!("Can't create ECPOINT: {}", e))?;
+
+    Ok(point)
+}
+
+/*
+should import data indicated by selection into keydata with values taken from the OSSL_PARAM array params
+*/
+pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_import(
+    keydata: VOID_PTR,
+    selection: std::os::raw::c_int,
+    params: *mut OSSL_PARAM,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_ECDSA_IMPORT), || {
+        Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+        let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+        let mut writer_key_data = key_data.write().unwrap();
+
+        let provider_key_name = openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+            params,
+            PARSEC_PROVIDER_KEY_NAME.as_ptr() as *const std::os::raw::c_char,
+        ));
+
+        if (selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0)
+            && provider_key_name.is_ok()
+        {
+            let name_param = *provider_key_name.unwrap();
+            let key_name = std::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                name_param.data as *mut u8,
+                name_param.data_size,
+            ));
+
+            let keys = writer_key_data
+                .provctx
+                .get_client()
+                .list_keys()
+                .map_err(|_| "Failed to list Parsec Provider's Keys".to_string())?;
+
+            if keys.iter().any(|kinfo| kinfo.name == key_name) {
+                let key_name: &mut [u8] = core::slice::from_raw_parts_mut(
+                    name_param.data as *mut u8,
+                    name_param.data_size,
+                );
+
+                writer_key_data.key_name = Some(std::str::from_utf8(key_name)?.to_string());
+
+                let curve = EcCurve::NistP256.as_nid();
+                let mut group = openssl::ec::EcGroup::from_curve_name(curve)
+                    .map_err(|_| "Failed to list Parsec Provider's Keys".to_string())?;
+                group.set_asn1_flag(openssl::ec::Asn1Flag::NAMED_CURVE);
+
+                let point = writer_key_data
+                    .provctx
+                    .get_client()
+                    .psa_export_public_key(
+                        std::str::from_utf8(key_name).map_err(|e| format!("{:?}", e))?,
+                    )
+                    .map_err(|e| {
+                        format!("Parsec Client failed to export public key: {:?}", e)
+                    })?;
+                let mut big_num_context = openssl::bn::BigNumContext::new()?;
+                let point =
+                    openssl::ec::EcPoint::from_bytes(&group, &point, &mut big_num_context)?;
+                writer_key_data.ecdsa_key = Some(point);
+            } else {
+                return Err("Invalid key name".to_string().into());
+            }
+            return Ok(OPENSSL_SUCCESS);
+        }
+
+        if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
+            let ecdsa_key = parsec_ecdsa_set_public_params(params)
+                .map_err(|e| format!("Failed to set ECDSA public keys: {}", e))?;
+            writer_key_data.ecdsa_key = Some(ecdsa_key);
+        }
+        Ok(OPENSSL_SUCCESS)
+    });
+    match result {
+        Ok(_) => OPENSSL_SUCCESS,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
+/*
 should import data indicated by selection into keydata with values taken from the OSSL_PARAM array params
 */
 pub unsafe extern "C" fn parsec_provider_kmgmt_import(
@@ -269,7 +384,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import(
     selection: std::os::raw::c_int,
     params: *mut OSSL_PARAM,
 ) -> std::os::raw::c_int {
-    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_IMPORT), || {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_RSA_IMPORT), || {
         Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
         let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
         let mut writer_key_data = key_data.write().unwrap();
@@ -306,7 +421,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import(
                     .provctx
                     .get_client()
                     .psa_export_public_key(key_name)
-                    .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
+                    .map_err(|e| format!("Parsec Client failed to export public key: {:?}", e))?;
                 let public_key: RsaPublicKey = picky_asn1_der::from_bytes(&rsa_bytes)
                     .map_err(|_| "Failed to parse RsaPublicKey data".to_string())?;
                 writer_key_data.rsa_key = Some(public_key);
@@ -481,6 +596,7 @@ const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
 const OSSL_FUNC_KEYMGMT_HAS_PTR: KeyMgmtHasPtr = parsec_provider_kmgmt_has;
 const OSSL_FUNC_KEYMGMT_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_import;
+const OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_ecdsa_kmgmt_import;
 const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
     parsec_provider_kmgmt_import_types;
 const OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
@@ -540,12 +656,11 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 13] = [
     ossl_dispatch!(),
 ];
 
-const PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL: [OSSL_DISPATCH; 13] = [
-    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
+const PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL: [OSSL_DISPATCH; 12] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_HAS_PTR) },
-    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_PTR) },
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
