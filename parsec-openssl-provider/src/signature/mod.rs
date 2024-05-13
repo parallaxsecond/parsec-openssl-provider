@@ -182,32 +182,49 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign_init(
     provkey: VOID_PTR,
     params: *const OSSL_PARAM,
 ) -> std::os::raw::c_int {
-    let result = super::r#catch(
-        Some(|| super::Error::PROVIDER_SIGNATURE_DIGEST_SIGN_INIT),
-        || {
-            if ctx.is_null() || provkey.is_null() {
-                return Err("Neither ctx nor provkey pointers should be NULL.".into());
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_SIGNATURE_DIGEST_SIGN_INIT), || {
+        if ctx.is_null() || provkey.is_null() {
+            return Err("Neither ctx nor provkey pointers should be NULL.".into());
+        }
+
+        Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
+        let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
+        let mut writer_sig_ctx = sig_ctx.write().unwrap();
+        Arc::increment_strong_count(provkey as *const RwLock<ParsecProviderKeyObject>);
+        let prov_key = Arc::from_raw(provkey as *const RwLock<ParsecProviderKeyObject>);
+
+        writer_sig_ctx.keyobj = Some(prov_key.clone());
+        let key_data = match writer_sig_ctx.keyobj {
+            None => {
+                return Err("Key Object not set.".into())
             }
+            Some(ref keyobj) => keyobj.read().unwrap(),
+        };
 
-            Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
-            let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
-            let mut reader_sig_ctx = sig_ctx.write().unwrap();
-            Arc::increment_strong_count(provkey as *const RwLock<ParsecProviderKeyObject>);
-            let prov_key = Arc::from_raw(provkey as *const RwLock<ParsecProviderKeyObject>);
-
-            reader_sig_ctx.keyobj = Some(prov_key.clone());
-
-            // Currently we only support SHA256 hash function.
-            // Return error if any other function is selected.
-            if let Ok(hash_function) = CStr::from_ptr(mdname).to_str() {
-                if hash_function != "SHA256" && hash_function != "SHA2-256" {
-                    return Err("Invalid hash function".into());
-                }
+        let key_name = match key_data.get_key_name() {
+            None => return Err("Key name not set in the Key Object".into()),
+            Some(ref name) => name,
+        };
+        // Currently we only support SHA256 hash function.
+        // Return error if any other function is selected.
+        if let Ok(hash_function) = CStr::from_ptr(mdname).to_str() {
+            if hash_function != "SHA256" && hash_function != "SHA2-256" {
+                return Err("Invalid hash function".into());
             }
-
-            Ok(parsec_provider_signature_set_params(ctx, params))
-        },
-    );
+        }
+        let key_attributes = key_data
+            .get_provctx()
+            .get_client()
+            .key_attributes(key_name)
+            .map_err(|e| format!("Failed to get specified key's attributes: {}", e))?;
+        match key_attributes.key_type {
+            Type::RsaKeyPair => Ok(parsec_provider_signature_set_params(ctx, params)),
+            Type::EccKeyPair {
+                curve_family: EccFamily::SecpR1,
+            } => Ok(parsec_provider_signature_ecdsa_set_params(ctx, params)),
+            _ => Err("Key type not recognized".to_string().into()),
+        }
+    });
 
     match result {
         Ok(result) => result,
