@@ -116,3 +116,23 @@ pub unsafe fn locate_and_set_provider_status_param(
     openssl_returns_1(openssl_bindings::OSSL_PARAM_set_int(ptr, 1))?;
     Ok(())
 }
+
+// Finds the OpenSSL parameter type in the parameter array "params" and sets the value
+// to the provider specific value
+pub unsafe fn locate_and_set_int_param(
+    openssl_param: &[u8],
+    value: usize,
+    params: *mut openssl_bindings::OSSL_PARAM,
+) -> Result<(), Error> {
+    if let Ok(ptr) = openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+        params,
+        openssl_param.as_ptr() as *const std::os::raw::c_char,
+    )) {
+        // OpenSSL returns OPENSSL_SUCCESS
+        openssl_returns_1(openssl_bindings::OSSL_PARAM_set_int(
+            ptr,
+            value.try_into().unwrap(),
+        ))?;
+    }
+    Ok(())
+}
