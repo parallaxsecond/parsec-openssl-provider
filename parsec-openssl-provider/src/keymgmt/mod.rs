@@ -507,11 +507,57 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 13] = [
     ossl_dispatch!(),
 ];
 
+const PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL: [OSSL_DISPATCH; 13] = [
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_HAS_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_PTR) },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
+            OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
+            OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_SET_PARAMS,
+            OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
+            OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_GET_PARAMS,
+            OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS,
+            OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR
+        )
+    },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_MATCH_PTR) },
+    ossl_dispatch!(),
+];
+
 pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 3] = [
     ossl_algorithm!(
         PARSEC_PROVIDER_ECDSA_NAME,
         PARSEC_PROVIDER_DFLT_PROPERTIES,
-        PARSEC_PROVIDER_KEYMGMT_IMPL,
+        PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL,
         PARSEC_PROVIDER_DESCRIPTION_ECDSA
     ),
     ossl_algorithm!(
