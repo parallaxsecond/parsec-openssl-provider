@@ -132,10 +132,10 @@ echo -n "Generating client certificate: "
 generate_client_certs ./tls/client ./tls/ca PARSEC_TEST_RSA_KEY
 generate_client_certs ./tls/client ./tls/ca PARSEC_TEST_ECDSA_KEY
 
-echo -n "Generating fake certificate authority private key and certificate: "
-generate_ca_certs ./tls/fake_ca
+# echo -n "Generating fake certificate authority private key and certificate: "
+# generate_ca_certs ./tls/fake_ca
 
-echo -n "Generating fake client private key and certificate: "
-generate_client_certs ./tls/fake_client ./tls/fake_ca
+# echo -n "Generating fake client private key and certificate: "
+# generate_client_certs ./tls/fake_client ./tls/fake_ca
 
 exit 0
