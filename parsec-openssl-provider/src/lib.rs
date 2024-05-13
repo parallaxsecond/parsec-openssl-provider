@@ -116,7 +116,7 @@ openssl_errors::openssl_errors! {
             PROVIDER_KEYMGMT_ECDSA_IMPORT("parsec_provider_kmgmt_ecdsa_import");
             PROVIDER_KEYMGMT_MATCH("parsec_provider_kmgmt_match");
             PROVIDER_KEYMGMT_SET_PARAMS("parsec_provider_kmgmt_set_params");
-            PROVIDER_KEYMGMT_GET_PARAMS("parsec_provider_kmgmt_get_params");
+            PROVIDER_KEYMGMT_RSA_GET_PARAMS("parsec_provider_kmgmt_rsa_get_params");
             PROVIDER_KEYMGMT_VALIDATE("parsec_provider_kmgmt_validate");
             PROVIDER_QUERY("parsec_provider_query");
             PROVIDER_SIGNATURE_SIGN("parsec_provider_signature_sign");

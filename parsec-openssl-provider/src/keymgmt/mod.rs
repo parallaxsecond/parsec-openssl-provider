@@ -59,6 +59,8 @@ impl ParsecProviderKeyObject {
     }
 }
 
+// Ec supported curve name
+const EC_CURVE_NAME: &str = "prime256v1\0";
 /*
 should create a provider side key object. The provider context provctx is passed and may be incorporated
 in the key object, but that is not mandatory.
@@ -132,7 +134,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_gettable_params(
 /*
 should extract information data associated with the given keydata
  */
-pub unsafe extern "C" fn parsec_provider_kmgmt_get_params(
+pub unsafe extern "C" fn parsec_provider_kmgmt_rsa_get_params(
     keydata: VOID_PTR,
     params: *mut OSSL_PARAM,
 ) -> std::os::raw::c_int {
@@ -152,6 +154,76 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_get_params(
                 locate_and_set_int_param(OSSL_PKEY_PARAM_MAX_SIZE, modulus.len(), params)?;
             }
 
+            Ok(OPENSSL_SUCCESS)
+        }
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
+fn get_ec_secbits(bits: usize) -> usize {
+    /* common values from various NIST documents */
+    if bits < 224 {
+        return 0;
+    }
+    if bits < 256 {
+        return 112;
+    }
+    if bits < 384 {
+        return 128;
+    }
+    if bits < 512 {
+        return 192;
+    }
+    return 256;
+}
+
+pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_get_params(
+    keydata: VOID_PTR,
+    params: *mut OSSL_PARAM,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_GET_PARAMS), || {
+        if keydata.is_null() || params.is_null() {
+            Err("Null pointer received as parameter".into())
+        } else {
+            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let reader_key_data = key_data.read().unwrap();
+
+            let key_name = match reader_key_data.key_name {
+                None => return Err("Key name is not set".to_string().into()),
+                Some(ref name) => name,
+            };
+
+            let key_attrs = reader_key_data
+                .provctx
+                .get_client()
+                .key_attributes(key_name)
+                .map_err(|e| format!("Failed to retrived key attributes: {}", e))?;
+
+            if let Ok(ptr) = openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+                params,
+                OSSL_PKEY_PARAM_GROUP_NAME.as_ptr() as *const std::os::raw::c_char,
+            )) {
+                let mut s = EC_CURVE_NAME.to_string();
+                (*ptr).data_type = OSSL_PARAM_UTF8_STRING;
+                (*ptr).return_size = s.len();
+                std::ptr::copy(s.as_mut_ptr() as _, (*ptr).data, s.len());
+            }
+            let _ = locate_and_set_int_param(OSSL_PKEY_PARAM_BITS, key_attrs.bits, params);
+            let _ = locate_and_set_int_param(
+                OSSL_PKEY_PARAM_SECURITY_BITS,
+                get_ec_secbits(key_attrs.bits),
+                params,
+            );
+            let _ = locate_and_set_int_param(
+                OSSL_PKEY_PARAM_MAX_SIZE,
+                (3 + (key_attrs.bits + 4) * 2).try_into().unwrap(),
+                params,
+            );
             Ok(OPENSSL_SUCCESS)
         }
     });
@@ -210,6 +282,7 @@ pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_has(
         let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
 
         if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
+            let reader_key_data = key_data.read().unwrap();
             if reader_key_data.get_ecdsa_key().is_none() {
                 return Err("ECDSA key has not been set.".into());
             }
@@ -695,7 +768,9 @@ const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
 const OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
     parsec_provider_ecdsa_kmgmt_import_types;
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
-const OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR: KeyMgmtGetParamsPtr = parsec_provider_kmgmt_get_params;
+const OSSL_FUNC_KEYMGMT_RSA_GET_PARAMS_PTR: KeyMgmtGetParamsPtr = parsec_provider_kmgmt_rsa_get_params;
+const OSSL_FUNC_KEYMGMT_ECDSA_GET_PARAMS_PTR: KeyMgmtGetParamsPtr =
+    parsec_provider_ecdsa_kmgmt_get_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
 const OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR: KeyMgmtGettableParamsPtr =
@@ -737,7 +812,7 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 13] = [
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_GET_PARAMS,
-            OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR
+            OSSL_FUNC_KEYMGMT_RSA_GET_PARAMS_PTR
         )
     },
     unsafe {
@@ -782,7 +857,7 @@ const PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL: [OSSL_DISPATCH; 12] = [
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_GET_PARAMS,
-            OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR
+            OSSL_FUNC_KEYMGMT_ECDSA_GET_PARAMS_PTR
         )
     },
     unsafe {
