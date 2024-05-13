@@ -424,8 +424,16 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_query_operation_name(
     PARSEC_PROVIDER_RSA_NAME.as_ptr() as *const std::os::raw::c_char
 }
 
+pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_query_operation_name(
+    _operation_id: std::os::raw::c_int,
+) -> *const std::os::raw::c_char {
+    return PARSEC_PROVIDER_ECDSA_NAME.as_ptr() as *const std::os::raw::c_char;
+}
+
 const OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
     parsec_provider_kmgmt_query_operation_name;
+const OSSL_FUNC_KEYMGMT_ECDSA_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
+    parsec_provider_ecdsa_kmgmt_query_operation_name;
 pub type KeyMgmtQueryOperationNamePtr =
     unsafe extern "C" fn(std::os::raw::c_int) -> *const std::os::raw::c_char;
 pub type KeyMgmtDupPtr = unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int) -> VOID_PTR;
@@ -522,7 +530,7 @@ const PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL: [OSSL_DISPATCH; 13] = [
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
-            OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR
+            OSSL_FUNC_KEYMGMT_ECDSA_QUERY_OPERATION_NAME_PTR
         )
     },
     unsafe {
