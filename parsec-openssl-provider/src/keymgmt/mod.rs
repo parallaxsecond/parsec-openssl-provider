@@ -200,6 +200,40 @@ should return 1 if all the selected data subsets are contained in the given keyd
 For algorithms where some selection is not meaningful the function should just return 1 as the
 selected subset is not really missing in the key.
 */
+pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_has(
+    keydata: VOID_PTR,
+    selection: std::os::raw::c_int,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_HAS), || {
+        Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+        let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+
+        if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
+            if reader_key_data.get_ecdsa_key().is_none() {
+                return Err("ECDSA key has not been set.".into());
+            }
+        }
+
+        if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
+            let reader_key_data = key_data.read().unwrap();
+            if reader_key_data.get_key_name().is_none() {
+                return Err("key name has not been set.".into());
+            }
+        }
+        Ok(OPENSSL_SUCCESS)
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
+/*
+should return 1 if all the selected data subsets are contained in the given keydata or 0 otherwise.
+For algorithms where some selection is not meaningful the function should just return 1 as the
+selected subset is not really missing in the key.
+*/
 pub unsafe extern "C" fn parsec_provider_kmgmt_has(
     keydata: VOID_PTR,
     selection: std::os::raw::c_int,
@@ -595,6 +629,7 @@ const OSSL_FUNC_KEYMGMT_DUP_PTR: KeyMgmtDupPtr = parsec_provider_keymgmt_dup;
 const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
 const OSSL_FUNC_KEYMGMT_HAS_PTR: KeyMgmtHasPtr = parsec_provider_kmgmt_has;
+const OSSL_FUNC_KEYMGMT_ECDSA_HAS_PTR: KeyMgmtHasPtr = parsec_provider_ecdsa_kmgmt_has;
 const OSSL_FUNC_KEYMGMT_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_import;
 const OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_ecdsa_kmgmt_import;
 const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
@@ -659,7 +694,7 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 13] = [
 const PARSEC_PROVIDER_KEYMGMT_ECDSA_IMPL: [OSSL_DISPATCH; 12] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
-    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_HAS_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_ECDSA_HAS_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_PTR) },
     unsafe {
         ossl_dispatch!(
