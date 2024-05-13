@@ -1,25 +1,23 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::openssl_bindings::{
-    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_FREE,
-    OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
-    OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
-    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS,
-    OSSL_PARAM, OSSL_PARAM_UTF8_PTR,
-};
+use crate::openssl_bindings::*;
 use crate::{
-    ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
-    PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_KEY_NAME,
+    ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA,
+    PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_KEY_NAME,
     PARSEC_PROVIDER_RSA_NAME,
 };
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
+use picky_asn1;
+use picky_asn1_x509::RsaPublicKey;
+use std::slice;
 use std::sync::{Arc, RwLock};
 
 pub struct ParsecProviderKeyObject {
     provctx: Arc<ParsecProviderContext>,
     key_name: Option<String>,
+    rsa_key: Option<RsaPublicKey>,
 }
 
 impl Clone for ParsecProviderKeyObject {
@@ -27,6 +25,7 @@ impl Clone for ParsecProviderKeyObject {
         ParsecProviderKeyObject {
             provctx: self.provctx.clone(),
             key_name: self.key_name.clone(),
+            rsa_key: self.rsa_key.clone(),
         }
     }
 }
@@ -36,6 +35,7 @@ impl ParsecProviderKeyObject {
         ParsecProviderKeyObject {
             provctx: provctx.clone(),
             key_name: None,
+            rsa_key: None,
         }
     }
 
@@ -45,6 +45,10 @@ impl ParsecProviderKeyObject {
 
     pub fn get_key_name(&self) -> &Option<String> {
         &self.key_name
+    }
+
+    pub fn get_rsa_key(&self) -> &Option<RsaPublicKey> {
+        &self.rsa_key
     }
 }
 
@@ -97,6 +101,54 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_settable_params(
     KEYMGMT_TABLE.as_ptr()
 }
 
+pub unsafe extern "C" fn parsec_provider_kmgmt_gettable_params(
+    _provctx: VOID_PTR,
+) -> *const OSSL_PARAM {
+    println!("In func parsec_provider_kmgmt_GETTABLE_params");
+    static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+    static mut KEYMGMT_GETTABLE_TABLE: [OSSL_PARAM; 4] = [ossl_param!(); 4];
+
+    ONCE_INIT.call_once(|| {
+        KEYMGMT_GETTABLE_TABLE = [
+            ossl_param!(OSSL_PKEY_PARAM_BITS, OSSL_PARAM_INTEGER),
+            ossl_param!(OSSL_PKEY_PARAM_SECURITY_BITS, OSSL_PARAM_INTEGER),
+            ossl_param!(OSSL_PKEY_PARAM_MAX_SIZE, OSSL_PARAM_INTEGER),
+            ossl_param!(),
+        ];
+    });
+    KEYMGMT_GETTABLE_TABLE.as_ptr()
+}
+
+pub unsafe extern "C" fn parsec_provider_kmgmt_get_params(
+    keydata: VOID_PTR,
+    params: *mut OSSL_PARAM,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_GET_PARAMS), || {
+        if keydata.is_null() || params.is_null() {
+            Err("Null pointer received as parameter".into())
+        } else {
+            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let reader_key_data = key_data.read().unwrap();
+
+            if let Some(public_key) = reader_key_data.get_rsa_key() {
+                let modulus = public_key.modulus.as_unsigned_bytes_be();
+
+                locate_and_set_int_param(OSSL_PKEY_PARAM_BITS, modulus.len() * 8, params)?;
+                locate_and_set_int_param(OSSL_PKEY_PARAM_SECURITY_BITS, 112, params)?;
+                locate_and_set_int_param(OSSL_PKEY_PARAM_MAX_SIZE, modulus.len(), params)?;
+            }
+
+            Ok(OPENSSL_SUCCESS)
+        }
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
 // should update information data associated with the given keydata
 pub unsafe extern "C" fn parsec_provider_kmgmt_set_params(
     keydata: VOID_PTR,
@@ -141,28 +193,69 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_has(
     selection: std::os::raw::c_int,
 ) -> std::os::raw::c_int {
     let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_HAS), || {
-        if keydata.is_null() {
-            return Err("keydata pointer should not be NULL.".into());
+        Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+        let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+
+        if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
+            let reader_key_data = key_data.read().unwrap();
+            if reader_key_data.get_rsa_key().is_none() {
+                return Err("key name has not been set.".into());
+            }
         }
 
         if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
-            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
-            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
             let reader_key_data = key_data.read().unwrap();
-            if reader_key_data.key_name.is_some() {
-                Ok(OPENSSL_SUCCESS)
-            } else {
-                Err("key name has not been set.".into())
+            if reader_key_data.get_key_name().is_none() {
+                return Err("key name has not been set.".into());
             }
-        } else {
-            Ok(OPENSSL_SUCCESS)
         }
+        Ok(OPENSSL_SUCCESS)
     });
 
     match result {
         Ok(result) => result,
         Err(()) => OPENSSL_ERROR,
     }
+}
+
+/*
+Reads the modulus and exponent components of the RSA key from the parameters and
+returns a public key of type RsaPublicKey
+*/
+unsafe fn parsec_rsa_set_public_params(params: *mut OSSL_PARAM) -> Result<RsaPublicKey, ()> {
+    // Read the modulus
+    let mod_param: openssl_bindings::OSSL_PARAM =
+        *openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+            params,
+            OSSL_PKEY_PARAM_RSA_N.as_ptr() as *const std::os::raw::c_char,
+        ))
+        .map_err(|_| ())?;
+
+    let mut modulus =
+        slice::from_raw_parts(mod_param.data as *const u8, mod_param.data_size).to_vec();
+    //ToDo: endianess
+    modulus.reverse();
+    let modulus = picky_asn1::wrapper::IntegerAsn1::from_bytes_be_unsigned(modulus);
+
+    // Read the exponent
+    let exp_param: openssl_bindings::OSSL_PARAM =
+        *openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+            params,
+            OSSL_PKEY_PARAM_RSA_E.as_ptr() as *const std::os::raw::c_char,
+        ))
+        .map_err(|_| ())?;
+
+    let mut exp = slice::from_raw_parts(exp_param.data as *const u8, exp_param.data_size).to_vec();
+    //ToDo: endianess
+    exp.reverse();
+    let exp = picky_asn1::wrapper::IntegerAsn1::from_bytes_be_unsigned(exp);
+
+    // Create a public key and return
+    let public_key = RsaPublicKey {
+        modulus: modulus,
+        public_exponent: exp,
+    };
+    Ok(public_key)
 }
 
 /*
@@ -177,38 +270,62 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import(
         let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_IMPORT), || {
             Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
             let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
-            let param: openssl_bindings::OSSL_PARAM =
-                *openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
-                    params,
-                    PARSEC_PROVIDER_KEY_NAME.as_ptr() as *const std::os::raw::c_char,
-                ))?;
+            let mut reader_key_data = key_data.write().unwrap();
 
-            let key_name = std::str::from_utf8_unchecked(core::slice::from_raw_parts(
-                param.data as *mut u8,
-                param.data_size,
+            let provider_key_name = openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+                params,
+                PARSEC_PROVIDER_KEY_NAME.as_ptr() as *const std::os::raw::c_char,
             ));
 
-            let reader_key_data = key_data.read().unwrap();
-            let keys = reader_key_data
-                .provctx
-                .get_client()
-                .list_keys()
-                .map_err(|_| "Failed to list Parsec Provider's Keys".to_string())?;
+            if (selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0)
+                && provider_key_name.is_ok()
+            {
+                let name_param = *provider_key_name.unwrap();
+                let key_name = std::str::from_utf8_unchecked(core::slice::from_raw_parts(
+                    name_param.data as *mut u8,
+                    name_param.data_size,
+                ));
 
-            if keys.iter().any(|kinfo| kinfo.name == key_name) {
-                Ok(OPENSSL_SUCCESS)
-            } else {
-                Err("Specified Key not found in the Parsec Provider".into())
+                let keys = reader_key_data
+                    .provctx
+                    .get_client()
+                    .list_keys()
+                    .map_err(|_| "Failed to list Parsec Provider's Keys".to_string())?;
+
+                if keys.iter().any(|kinfo| kinfo.name == key_name) {
+                    let key_name: &mut [u8] = core::slice::from_raw_parts_mut(
+                        name_param.data as *mut u8,
+                        name_param.data_size,
+                    );
+
+                    reader_key_data.key_name = Some(std::str::from_utf8(key_name)?.to_string());
+
+                    let rsa_bytes = reader_key_data
+                        .provctx
+                        .get_client()
+                        .psa_export_public_key(std::str::from_utf8(key_name).expect("REASON"))?;
+                    let public_key: RsaPublicKey = picky_asn1_der::from_bytes(&rsa_bytes)
+                        .map_err(|_| "Failed to parse RsaPublicKey data".to_string())?;
+                    reader_key_data.rsa_key = Some(public_key);
+                } else {
+                    return Err("Invalid key name".to_string().into());
+                }
+                return Ok(OPENSSL_SUCCESS);
             }
+
+            if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
+                let rsa_key = parsec_rsa_set_public_params(params)
+                    .map_err(|_| "Failed to set RSA public keys".to_string())?;
+                reader_key_data.rsa_key = Some(rsa_key);
+            }
+            Ok(OPENSSL_SUCCESS)
         });
         match result {
-            // Right now, settable params are the same as the import types, so it's ok to use this
-            // function
-            Ok(_) => parsec_provider_kmgmt_set_params(keydata, params),
+            Ok(_) => OPENSSL_SUCCESS,
             Err(()) => OPENSSL_ERROR,
         }
     } else {
-        OPENSSL_SUCCESS
+        OPENSSL_ERROR
     }
 }
 
@@ -219,13 +336,14 @@ OSSL_FUNC_keymgmt_import() can handle
 pub unsafe extern "C" fn parsec_provider_kmgmt_import_types(
     selection: std::os::raw::c_int,
 ) -> *const OSSL_PARAM {
-    if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
+    if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
         static ONCE_INIT: std::sync::Once = std::sync::Once::new();
-        static mut IMPORT_TYPES_TABLE: [OSSL_PARAM; 2] = [ossl_param!(); 2];
+        static mut IMPORT_TYPES_TABLE: [OSSL_PARAM; 3] = [ossl_param!(); 3];
 
         ONCE_INIT.call_once(|| {
             IMPORT_TYPES_TABLE = [
-                ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR),
+                ossl_param!(OSSL_PKEY_PARAM_RSA_N, OSSL_PARAM_UNSIGNED_INTEGER),
+                ossl_param!(OSSL_PKEY_PARAM_RSA_E, OSSL_PARAM_UNSIGNED_INTEGER),
                 ossl_param!(),
             ];
         });
@@ -233,51 +351,6 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import_types(
         IMPORT_TYPES_TABLE.as_ptr()
     } else {
         std::ptr::null_mut()
-    }
-}
-
-// Should check if the keydata contains valid data subsets indicated by selection.
-pub unsafe extern "C" fn parsec_provider_kmgmt_validate(
-    keydata: VOID_PTR,
-    selection: std::os::raw::c_int,
-    _checktype: std::os::raw::c_int,
-) -> std::os::raw::c_int {
-    if keydata.is_null() {
-        return OPENSSL_ERROR;
-    }
-
-    if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
-        Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
-        let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
-        let reader_key_data = key_data.read().unwrap();
-        let key_name = (*reader_key_data).get_key_name();
-        let result =
-            super::r#catch(
-                Some(|| super::Error::PROVIDER_KEYMGMT_VALIDATE),
-                || match key_name {
-                    Some(name) => {
-                        let keys = reader_key_data
-                            .provctx
-                            .get_client()
-                            .list_keys()
-                            .map_err(|_| "Failed to list Parsec Provider's Keys".to_string())?;
-
-                        if keys.iter().any(|kinfo| kinfo.name == name.as_str()) {
-                            Ok(OPENSSL_SUCCESS)
-                        } else {
-                            Err("Specified Key not found in the Parsec Provider".into())
-                        }
-                    }
-                    None => Err("keydata to validate failed: Key name not specified".into()),
-                },
-            );
-
-        match result {
-            Ok(result) => result,
-            Err(()) => OPENSSL_ERROR,
-        }
-    } else {
-        OPENSSL_SUCCESS
     }
 }
 
@@ -308,7 +381,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_match(
             let reader_key_data1 = key_data1.read().unwrap();
             let reader_key_data2 = key_data2.read().unwrap();
 
-            if reader_key_data1.key_name == reader_key_data2.key_name {
+            if reader_key_data1.get_rsa_key() == reader_key_data2.get_rsa_key() {
                 Ok(OPENSSL_SUCCESS)
             } else {
                 Err("Key names do not match".into())
@@ -344,6 +417,16 @@ pub unsafe extern "C" fn parsec_provider_keymgmt_dup(
     }
 }
 
+pub unsafe extern "C" fn parsec_provider_kmgmt_query_operation_name(
+    _operation_id: std::os::raw::c_int,
+) -> *const std::os::raw::c_char {
+    return PARSEC_PROVIDER_RSA_NAME.as_ptr() as *const std::os::raw::c_char;
+}
+
+const OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
+    parsec_provider_kmgmt_query_operation_name;
+pub type KeyMgmtQueryOperationNamePtr =
+    unsafe extern "C" fn(std::os::raw::c_int) -> *const std::os::raw::c_char;
 pub type KeyMgmtDupPtr = unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int) -> VOID_PTR;
 pub type KeyMgmtNewPtr = unsafe extern "C" fn(VOID_PTR) -> VOID_PTR;
 pub type KeyMgmtFreePtr = unsafe extern "C" fn(VOID_PTR);
@@ -353,9 +436,11 @@ pub type KeyMgmtImportPtr =
 pub type KeyMgmtImportTypesPtr = unsafe extern "C" fn(std::os::raw::c_int) -> *const OSSL_PARAM;
 pub type KeyMgmtSetParamsPtr =
     unsafe extern "C" fn(VOID_PTR, *mut OSSL_PARAM) -> std::os::raw::c_int;
+pub type KeyMgmtGetParamsPtr =
+    unsafe extern "C" fn(VOID_PTR, *mut OSSL_PARAM) -> std::os::raw::c_int;
 pub type KeyMgmtSettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
-pub type KeyMgmtValidatePtr =
-    unsafe extern "C" fn(VOID_PTR, std::os::raw::c_int, std::os::raw::c_int) -> std::os::raw::c_int;
+pub type KeyMgmtGettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
+
 pub type KeyMgmtMatchPtr =
     unsafe extern "C" fn(VOID_PTR, VOID_PTR, std::os::raw::c_int) -> std::os::raw::c_int;
 
@@ -367,12 +452,15 @@ const OSSL_FUNC_KEYMGMT_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_imp
 const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
     parsec_provider_kmgmt_import_types;
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
+const OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR: KeyMgmtGetParamsPtr = parsec_provider_kmgmt_get_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
-const OSSL_FUNC_KEYMGMT_VALIDATE_PTR: KeyMgmtValidatePtr = parsec_provider_kmgmt_validate;
+const OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR: KeyMgmtGettableParamsPtr =
+    parsec_provider_kmgmt_gettable_params;
+
 const OSSL_FUNC_KEYMGMT_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_kmgmt_match;
 
-const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
+const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 13] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
@@ -382,6 +470,12 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
             OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
+            OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR
         )
     },
     unsafe {
@@ -396,18 +490,29 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 11] = [
             OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR
         )
     },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_GET_PARAMS,
+            OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS,
+            OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR
+        )
+    },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_MATCH_PTR) },
-    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_VALIDATE, OSSL_FUNC_KEYMGMT_VALIDATE_PTR) },
     ossl_dispatch!(),
 ];
 
-pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 3] = [
-    ossl_algorithm!(
-        PARSEC_PROVIDER_ECDSA_NAME,
-        PARSEC_PROVIDER_DFLT_PROPERTIES,
-        PARSEC_PROVIDER_KEYMGMT_IMPL,
-        PARSEC_PROVIDER_DESCRIPTION_ECDSA
-    ),
+pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 2] = [
+    // ossl_algorithm!(
+    //     PARSEC_PROVIDER_ECDSA_NAME,
+    //     PARSEC_PROVIDER_DFLT_PROPERTIES,
+    //     PARSEC_PROVIDER_KEYMGMT_IMPL,
+    //     PARSEC_PROVIDER_DESCRIPTION_ECDSA
+    // ),
     ossl_algorithm!(
         PARSEC_PROVIDER_RSA_NAME,
         PARSEC_PROVIDER_DFLT_PROPERTIES,
@@ -475,70 +580,6 @@ fn test_kmgmt_has() {
 
     unsafe {
         parsec_provider_kmgmt_free(keyobj);
-        parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
-    }
-}
-
-#[test]
-fn test_kmgmt_validate() {
-    use crate::{parsec_provider_provider_init, parsec_provider_teardown};
-
-    let out: *const OSSL_DISPATCH = std::ptr::null();
-    let mut provctx: types::VOID_PTR = std::ptr::null_mut();
-
-    // Initialize the provider
-    let result: Result<(), parsec_openssl2::Error> = unsafe {
-        parsec_provider_provider_init(
-            std::ptr::null(),
-            std::ptr::null(),
-            &out as *const _ as *mut _,
-            &mut provctx as *mut VOID_PTR,
-        )
-    };
-    assert!(result.is_ok());
-
-    let keyctx = unsafe { parsec_provider_kmgmt_new(provctx) };
-
-    // Check that validate fails with "bad" data
-    let bad_key_name = "BAD-NAME".to_string();
-    let mut bad_params = [
-        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, bad_key_name),
-        ossl_param!(),
-    ];
-
-    let set_params_res = unsafe { parsec_provider_kmgmt_set_params(keyctx, &mut bad_params as _) };
-    assert_eq!(set_params_res, OPENSSL_SUCCESS);
-
-    let result = unsafe {
-        parsec_provider_kmgmt_validate(
-            keyctx as VOID_PTR,
-            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
-            0,
-        )
-    };
-    assert_eq!(result, OPENSSL_ERROR);
-
-    // Check that validate succeeds with "good" data
-    let my_key_name = "PARSEC_TEST_ECDSA_KEY".to_string();
-    let mut params = [
-        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, my_key_name),
-        ossl_param!(),
-    ];
-
-    let set_params_res = unsafe { parsec_provider_kmgmt_set_params(keyctx, &mut params as _) };
-    assert_eq!(set_params_res, OPENSSL_SUCCESS);
-
-    let result = unsafe {
-        parsec_provider_kmgmt_validate(
-            keyctx as VOID_PTR,
-            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
-            0,
-        )
-    };
-    assert_eq!(result, OPENSSL_SUCCESS);
-
-    unsafe {
-        parsec_provider_kmgmt_free(keyctx);
         parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
     }
 }
