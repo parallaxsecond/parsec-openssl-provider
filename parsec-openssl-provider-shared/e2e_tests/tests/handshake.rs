@@ -151,3 +151,25 @@ fn test_handshake_client_authentication_with_fake_ca() {
     );
     client.connect(addr);
 }
+
+// This is a negative test case. When a client is configured with a wrong certificate for a private
+// key, the key management match function should report an error about the mismatched private key and
+// public key from the x509 certificate.
+#[test]
+fn test_client_with_mismatched_key_and_certificate() {
+    let mut ctx_builder = SslContext::builder(SslMethod::tls_client()).unwrap();
+
+    ctx_builder
+        .set_certificate_file(
+            String::from("../../tests/tls/fake_client/client_cert.pem"),
+            SslFiletype::PEM,
+        )
+        .unwrap();
+
+    ctx_builder
+        .set_private_key_file(
+            String::from("../../tests/tls/client/client_priv_key.pem"),
+            SslFiletype::PEM,
+        )
+        .unwrap_err();
+}
