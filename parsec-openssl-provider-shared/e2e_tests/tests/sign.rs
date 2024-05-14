@@ -125,7 +125,7 @@ fn test_signing_rsa() {
 
     // A 2048 bit RSA signing operation produces 256 bytes signature
     let mut signature: [u8; 256] = [0; 256];
-    let sign_alg = AsymmetricSignature::RsaPkcs1v15Sign {
+    let sign_alg = AsymmetricSignature::RsaPss {
         hash_alg: Hash::Sha256.into(),
     };
 
