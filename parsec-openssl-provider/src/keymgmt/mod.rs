@@ -372,7 +372,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_match(
             return Err("One of the keydatas to compare is null".into());
         }
 
-        if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
+        if selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY as std::os::raw::c_int != 0 {
             Arc::increment_strong_count(keydata1 as *const RwLock<ParsecProviderKeyObject>);
             Arc::increment_strong_count(keydata2 as *const RwLock<ParsecProviderKeyObject>);
 
@@ -382,13 +382,13 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_match(
             let reader_key_data1 = key_data1.read().unwrap();
             let reader_key_data2 = key_data2.read().unwrap();
 
-            if reader_key_data1.key_name == reader_key_data2.key_name {
+            if reader_key_data1.get_rsa_key() == reader_key_data2.get_rsa_key() {
                 Ok(OPENSSL_SUCCESS)
             } else {
-                Err("Key names do not match".into())
+                Err("Public parts of the keys do not match".into())
             }
         } else {
-            Ok(OPENSSL_SUCCESS)
+            Err("Keys do not match".into())
         }
     });
 
