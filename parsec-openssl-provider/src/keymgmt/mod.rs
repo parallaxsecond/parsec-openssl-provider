@@ -149,7 +149,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_has(
             Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
             let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
             let reader_key_data = key_data.read().unwrap();
-            if reader_key_data.key_name.is_some() {
+            if reader_key_data.get_key_name().is_some() {
                 Ok(OPENSSL_SUCCESS)
             } else {
                 Err("key name has not been set.".into())
