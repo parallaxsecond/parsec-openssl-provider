@@ -396,6 +396,6 @@ fn test_sign_newctx() {
 
     unsafe {
         parsec_provider_signature_freectx(sig_ctx);
-        parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
+        parsec_provider_teardown(provctx as _);
     }
 }
