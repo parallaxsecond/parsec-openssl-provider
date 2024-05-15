@@ -9,7 +9,6 @@ use crate::{
 };
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
-use picky_asn1;
 use picky_asn1_x509::RsaPublicKey;
 use std::slice;
 use std::sync::{Arc, RwLock};
@@ -256,7 +255,7 @@ unsafe fn parsec_rsa_set_public_params(params: *mut OSSL_PARAM) -> Result<RsaPub
 
     // Create a public key and return
     let public_key = RsaPublicKey {
-        modulus: modulus,
+        modulus,
         public_exponent: exp,
     };
     Ok(public_key)
@@ -422,7 +421,7 @@ pub unsafe extern "C" fn parsec_provider_keymgmt_dup(
 pub unsafe extern "C" fn parsec_provider_kmgmt_query_operation_name(
     _operation_id: std::os::raw::c_int,
 ) -> *const std::os::raw::c_char {
-    return PARSEC_PROVIDER_RSA_NAME.as_ptr() as *const std::os::raw::c_char;
+    PARSEC_PROVIDER_RSA_NAME.as_ptr() as *const std::os::raw::c_char
 }
 
 const OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
@@ -582,7 +581,7 @@ fn test_kmgmt_has() {
 
     unsafe {
         parsec_provider_kmgmt_free(keyobj);
-        parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
+        parsec_provider_teardown(provctx as _);
     }
 }
 
@@ -709,7 +708,7 @@ fn test_kmgmt_match() {
     unsafe {
         parsec_provider_kmgmt_free(keyobj1);
         parsec_provider_kmgmt_free(keyobj2);
-        parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
+        parsec_provider_teardown(provctx as _);
     }
 }
 
@@ -766,7 +765,7 @@ fn test_kmgmt_import() {
 
     unsafe {
         parsec_provider_kmgmt_free(keyctx);
-        parsec_provider_teardown(provctx as *const OSSL_PROVIDER);
+        parsec_provider_teardown(provctx as _);
     }
 }
 
