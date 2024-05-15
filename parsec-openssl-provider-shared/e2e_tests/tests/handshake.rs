@@ -97,7 +97,7 @@ fn test_handshake_client_authentication_with_no_rsa_client_key() {
     server.accept(listener);
 
     let client = Client::new(
-        Some(String::from("../../tests/tls/client/client_cert.pem")),
+        Some(String::from("../../tests/tls/client/parsec_rsa.pem")),
         None,
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
@@ -119,7 +119,7 @@ fn test_handshake_client_authentication_rsa() {
     server.accept(socket);
 
     let client = Client::new(
-        Some(String::from("../../tests/tls/client/client_cert.pem")),
+        Some(String::from("../../tests/tls/client/parsec_rsa.pem")),
         Some(String::from("PARSEC_TEST_RSA_KEY")),
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
@@ -142,7 +142,7 @@ fn test_handshake_client_authentication_with_fake_ca() {
     server.accept(socket);
 
     let client = Client::new(
-        Some(String::from("../../tests/tls/fake_client/client_cert.pem")),
+        Some(String::from("../../tests/tls/fake_client/parsec_rsa.pem")),
         Some(String::from("PARSEC_TEST_RSA_KEY")),
         Some(String::from("../../tests/tls/fake_ca/ca_cert.pem")),
         SslVerifyMode::PEER,
@@ -159,7 +159,7 @@ fn test_client_with_mismatched_rsa_key_and_certificate() {
 
     ctx_builder
         .set_certificate_file(
-            String::from("../../tests/tls/fake_client/client_cert.pem"),
+            String::from("../../tests/tls/fake_client/parsec_rsa.pem"),
             SslFiletype::PEM,
         )
         .unwrap();
