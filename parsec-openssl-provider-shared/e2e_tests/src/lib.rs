@@ -13,7 +13,6 @@ pub use std::io::{Read, Write};
 pub use std::net::{SocketAddr, TcpListener, TcpStream};
 pub use std::thread::{self, JoinHandle};
 
-const RSA: &[u8; 8] = b"RSA-PSS\0";
 use openssl::pkey::Private;
 use parsec_openssl_provider::parsec_openssl2::ossl_param;
 use parsec_openssl_provider::PARSEC_PROVIDER_KEY_NAME;
@@ -137,7 +136,7 @@ impl Client {
     }
 
     // Creates a TCP stream and initiates a TLS handshake to the server
-    pub fn connect(self, addr: SocketAddr) {
+    pub fn connect(self, addr: SocketAddr, key_type: &[u8]) {
         unsafe {
             let provider_path = String::from("../../target/debug/");
             let provider_name = String::from("libparsec_openssl_provider_shared");
@@ -150,7 +149,7 @@ impl Client {
 
             if let Some(key) = &self.private_key_name {
                 let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key);
-                load_key(&lib_ctx, &mut param, &mut parsec_pkey, RSA);
+                load_key(&lib_ctx, &mut param, &mut parsec_pkey, key_type);
 
                 let key: openssl::pkey::PKey<Private> =
                     openssl::pkey::PKey::from_ptr(parsec_pkey as _);
@@ -177,7 +176,7 @@ impl Client {
     }
 }
 
-pub fn check_mismatched_key_certificate(key: String, certificate: String) {
+pub fn check_mismatched_key_certificate(key: String, certificate: String, key_type: &[u8]) {
     unsafe {
         let provider_path = String::from("../../target/debug/");
         let provider_name = String::from("libparsec_openssl_provider_shared");
@@ -193,7 +192,7 @@ pub fn check_mismatched_key_certificate(key: String, certificate: String) {
             .unwrap();
 
         let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key);
-        load_key(&lib_ctx, &mut param, &mut parsec_pkey, RSA);
+        load_key(&lib_ctx, &mut param, &mut parsec_pkey, key_type);
 
         let key: openssl::pkey::PKey<Private> = openssl::pkey::PKey::from_ptr(parsec_pkey as _);
 
