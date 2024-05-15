@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::keymgmt::ParsecProviderKeyObject;
-use crate::openssl_bindings::{
-    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_NEWCTX,
-    OSSL_FUNC_SIGNATURE_SIGN, OSSL_FUNC_SIGNATURE_SIGN_INIT, OSSL_PARAM,
-};
+use crate::openssl_bindings::*;
 use crate::{
     PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
     PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_RSA_NAME,
@@ -15,7 +12,7 @@ use parsec_client::core::interface::operations::psa_algorithm::Hash;
 use parsec_client::core::interface::operations::psa_key_attributes::{Attributes, EccFamily, Type};
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
-
+use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
 
 struct ParsecProviderSignatureContext {
@@ -179,6 +176,45 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign(
     }
 }
 
+unsafe extern "C" fn parsec_provider_signature_digest_sign_init(
+    ctx: VOID_PTR,
+    mdname: *const std::os::raw::c_char,
+    provkey: VOID_PTR,
+    params: *const OSSL_PARAM,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(
+        Some(|| super::Error::PROVIDER_SIGNATURE_DIGEST_SIGN_INIT),
+        || {
+            if ctx.is_null() || provkey.is_null() {
+                return Err("Neither ctx nor provkey pointers should be NULL.".into());
+            }
+
+            Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
+            let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
+            let mut reader_sig_ctx = sig_ctx.write().unwrap();
+            Arc::increment_strong_count(provkey as *const RwLock<ParsecProviderKeyObject>);
+            let prov_key = Arc::from_raw(provkey as *const RwLock<ParsecProviderKeyObject>);
+
+            reader_sig_ctx.keyobj = Some(prov_key.clone());
+
+            // Currently we only support SHA256 hash function.
+            // Return error if any other function is selected.
+            if let Ok(hash_function) = CStr::from_ptr(mdname).to_str() {
+                if hash_function != "SHA256" && hash_function != "SHA2-256" {
+                    return Err("Invalid hash function".into());
+                }
+            }
+
+            Ok(parsec_provider_signature_set_params(ctx, params))
+        },
+    );
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
 pub type SignatureNewCtxPtr =
     unsafe extern "C" fn(VOID_PTR, *const std::os::raw::c_char) -> VOID_PTR;
 pub type SignatureFreeCtxPtr = unsafe extern "C" fn(VOID_PTR);
@@ -191,10 +227,20 @@ pub type SignatureDigestSignPtr = unsafe extern "C" fn(
     std::os::raw::c_uint,
 ) -> std::os::raw::c_int;
 
+pub type SignatureDigestSignInitPtr = unsafe extern "C" fn(
+    VOID_PTR,
+    *const std::os::raw::c_char,
+    VOID_PTR,
+    *const OSSL_PARAM,
+) -> std::os::raw::c_int;
+
 const OSSL_FUNC_SIGNATURE_NEWCTX_PTR: SignatureNewCtxPtr = parsec_provider_signature_newctx;
 const OSSL_FUNC_SIGNATURE_FREECTX_PTR: SignatureFreeCtxPtr = parsec_provider_signature_freectx;
 const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR: SignatureDigestSignPtr =
     parsec_provider_signature_digest_sign;
+
+const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT_PTR: SignatureDigestSignInitPtr =
+    parsec_provider_signature_digest_sign_init;
 
 const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
@@ -203,6 +249,12 @@ const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
         ossl_dispatch!(
             OSSL_FUNC_SIGNATURE_DIGEST_SIGN,
             OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT,
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT_PTR
         )
     },
     ossl_dispatch!(),
