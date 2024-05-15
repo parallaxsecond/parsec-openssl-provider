@@ -100,6 +100,59 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_settable_params(
     KEYMGMT_TABLE.as_ptr()
 }
 
+/*
+should return a constant array of descriptor OSSL_PARAM, for parameters that OSSL_FUNC_keymgmt_get_params() can handle
+ */
+pub unsafe extern "C" fn parsec_provider_kmgmt_gettable_params(
+    _provctx: VOID_PTR,
+) -> *const OSSL_PARAM {
+    static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+    static mut KEYMGMT_GETTABLE_TABLE: [OSSL_PARAM; 4] = [ossl_param!(); 4];
+
+    ONCE_INIT.call_once(|| {
+        KEYMGMT_GETTABLE_TABLE = [
+            ossl_param!(OSSL_PKEY_PARAM_BITS, OSSL_PARAM_INTEGER),
+            ossl_param!(OSSL_PKEY_PARAM_SECURITY_BITS, OSSL_PARAM_INTEGER),
+            ossl_param!(OSSL_PKEY_PARAM_MAX_SIZE, OSSL_PARAM_INTEGER),
+            ossl_param!(),
+        ];
+    });
+    KEYMGMT_GETTABLE_TABLE.as_ptr()
+}
+
+/*
+should extract information data associated with the given keydata
+ */
+pub unsafe extern "C" fn parsec_provider_kmgmt_get_params(
+    keydata: VOID_PTR,
+    params: *mut OSSL_PARAM,
+) -> std::os::raw::c_int {
+    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_GET_PARAMS), || {
+        if keydata.is_null() || params.is_null() {
+            Err("Null pointer received as parameter".into())
+        } else {
+            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+            let reader_key_data = key_data.read().unwrap();
+
+            if let Some(public_key) = reader_key_data.get_rsa_key() {
+                let modulus = public_key.modulus.as_unsigned_bytes_be();
+
+                locate_and_set_int_param(OSSL_PKEY_PARAM_BITS, modulus.len() * 8, params)?;
+                locate_and_set_int_param(OSSL_PKEY_PARAM_SECURITY_BITS, 112, params)?;
+                locate_and_set_int_param(OSSL_PKEY_PARAM_MAX_SIZE, modulus.len(), params)?;
+            }
+
+            Ok(OPENSSL_SUCCESS)
+        }
+    });
+
+    match result {
+        Ok(result) => result,
+        Err(()) => OPENSSL_ERROR,
+    }
+}
+
 // should update information data associated with the given keydata
 pub unsafe extern "C" fn parsec_provider_kmgmt_set_params(
     keydata: VOID_PTR,
@@ -384,7 +437,11 @@ pub type KeyMgmtImportPtr =
 pub type KeyMgmtImportTypesPtr = unsafe extern "C" fn(std::os::raw::c_int) -> *const OSSL_PARAM;
 pub type KeyMgmtSetParamsPtr =
     unsafe extern "C" fn(VOID_PTR, *mut OSSL_PARAM) -> std::os::raw::c_int;
+pub type KeyMgmtGetParamsPtr =
+    unsafe extern "C" fn(VOID_PTR, *mut OSSL_PARAM) -> std::os::raw::c_int;
 pub type KeyMgmtSettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
+pub type KeyMgmtGettableParamsPtr = unsafe extern "C" fn(VOID_PTR) -> *const OSSL_PARAM;
+
 pub type KeyMgmtMatchPtr =
     unsafe extern "C" fn(VOID_PTR, VOID_PTR, std::os::raw::c_int) -> std::os::raw::c_int;
 
@@ -396,11 +453,15 @@ const OSSL_FUNC_KEYMGMT_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_imp
 const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
     parsec_provider_kmgmt_import_types;
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
+const OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR: KeyMgmtGetParamsPtr = parsec_provider_kmgmt_get_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =
     parsec_provider_kmgmt_settable_params;
+const OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR: KeyMgmtGettableParamsPtr =
+    parsec_provider_kmgmt_gettable_params;
+
 const OSSL_FUNC_KEYMGMT_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_kmgmt_match;
 
-const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 10] = [
+const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 13] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
@@ -428,6 +489,18 @@ const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 10] = [
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
             OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_GET_PARAMS,
+            OSSL_FUNC_KEYMGMT_GET_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS,
+            OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR
         )
     },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_MATCH_PTR) },
