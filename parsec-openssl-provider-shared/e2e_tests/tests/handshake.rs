@@ -120,7 +120,7 @@ fn test_handshake_client_authentication_rsa() {
 
     let client = Client::new(
         Some(String::from("../../tests/tls/client/client_cert.pem")),
-        Some(String::from("../../tests/tls/client/client_priv_key.pem")),
+        Some(String::from("PARSEC_TEST_RSA_KEY")),
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
@@ -143,9 +143,7 @@ fn test_handshake_client_authentication_with_fake_ca() {
 
     let client = Client::new(
         Some(String::from("../../tests/tls/fake_client/client_cert.pem")),
-        Some(String::from(
-            "../../tests/tls/fake_client/client_priv_key.pem",
-        )),
+        Some(String::from("PARSEC_TEST_RSA_KEY")),
         Some(String::from("../../tests/tls/fake_ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
@@ -167,9 +165,6 @@ fn test_client_with_mismatched_rsa_key_and_certificate() {
         .unwrap();
 
     ctx_builder
-        .set_private_key_file(
-            String::from("../../tests/tls/client/client_priv_key.pem"),
-            SslFiletype::PEM,
-        )
+        .set_private_key_file(String::from("PARSEC_TEST_RSA_KEY"), SslFiletype::PEM)
         .unwrap_err();
 }
