@@ -136,7 +136,11 @@ generate_client_certs_parsec ./tls/client ./tls/ca parsec_ecdsa PARSEC_TEST_ECDS
 echo -n "Generating fake certificate authority private key and certificate: "
 generate_ca_certs ./tls/fake_ca
 
-echo -n "Generating fake client private key and certificate: "
-generate_client_certs ./tls/fake_client ./tls/fake_ca
+parsec-tool create-rsa-key -r -b 2048 -k PARSEC_FAKE_RSA_KEY
+parsec-tool create-ecc-key -k PARSEC_FAKE_ECDSA_KEY
+
+echo -n "Generating fake client certificate: "
+generate_client_certs_parsec ./tls/fake_client ./tls/ca parsec_rsa PARSEC_FAKE_RSA_KEY
+generate_client_certs_parsec ./tls/fake_client ./tls/ca parsec_ecdsa PARSEC_FAKE_ECDSA_KEY
 
 exit 0
