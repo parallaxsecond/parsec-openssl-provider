@@ -13,6 +13,11 @@ pub use std::io::{Read, Write};
 pub use std::net::{SocketAddr, TcpListener, TcpStream};
 pub use std::thread::{self, JoinHandle};
 
+const RSA: &[u8; 8] = b"RSA-PSS\0";
+use openssl::pkey::Private;
+use parsec_openssl_provider::parsec_openssl2::ossl_param;
+use parsec_openssl_provider::PARSEC_PROVIDER_KEY_NAME;
+
 // Loads a provider into the given library context
 pub fn load_provider(lib_ctx: &LibCtx, provider_name: &str, provider_path: String) -> Provider {
     assert!(Provider::set_default_search_path(Some(lib_ctx), &provider_path).is_ok());
@@ -131,33 +136,43 @@ impl Client {
         }
     }
 
-    // ToDo: This needs to modified in the future to use the PKey object from parsec provider
-    // Uses all the Client configurations to build a SslContext object
-    pub fn build(&mut self) -> SslContext {
-        let mut ctx_builder = SslContext::builder(self.ssl_method).unwrap();
-        if let Some(certificate) = &self.certificate {
-            ctx_builder
-                .set_certificate_file(certificate, SslFiletype::PEM)
-                .unwrap();
-        }
-        if let Some(key) = &self.private_key {
-            ctx_builder
-                .set_private_key_file(key, SslFiletype::PEM)
-                .unwrap();
-        }
-        if let Some(ca_cert) = &self.ca_certificate {
-            ctx_builder.set_ca_file(ca_cert).unwrap();
-        }
-        ctx_builder.set_verify(self.ssl_mode);
-        ctx_builder.build()
-    }
-
     // Creates a TCP stream and initiates a TLS handshake to the server
-    pub fn connect(mut self, addr: SocketAddr) {
-        let socket = TcpStream::connect(addr).unwrap();
-        let client_ctx = self.build();
-        let ssl = Ssl::new(&client_ctx).unwrap();
-        let mut channel = ssl.connect(socket).unwrap();
-        channel.read_exact(&mut [0]).unwrap();
+    pub fn connect(self, addr: SocketAddr) {
+        unsafe {
+            let provider_path = String::from("../../target/debug/");
+            let provider_name = String::from("libparsec_openssl_provider_shared");
+            let lib_ctx = LibCtx::new().unwrap();
+            let _provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
+
+            let mut parsec_pkey: *mut EVP_PKEY = std::ptr::null_mut();
+
+            let mut ctx_builder = SslContextBuilder::new(self.ssl_method).unwrap();
+
+            if let Some(key) = &self.private_key_name {
+                let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key);
+                load_key(&lib_ctx, &mut param, &mut parsec_pkey, RSA);
+
+                let key: openssl::pkey::PKey<Private> =
+                    openssl::pkey::PKey::from_ptr(parsec_pkey as _);
+                ctx_builder.set_private_key(&key).unwrap();
+            }
+
+            if let Some(certificate) = &self.certificate {
+                ctx_builder
+                    .set_certificate_file(certificate, SslFiletype::PEM)
+                    .unwrap();
+            }
+            if let Some(ca_cert) = &self.ca_certificate {
+                ctx_builder.set_ca_file(ca_cert).unwrap();
+            }
+
+            ctx_builder.set_verify(self.ssl_mode);
+
+            let client_ctx = ctx_builder.build();
+            let socket = TcpStream::connect(addr).unwrap();
+            let ssl = Ssl::new(&client_ctx).unwrap();
+            let mut s = ssl.connect(socket).unwrap();
+            s.read_exact(&mut [0]).unwrap();
+        }
     }
 }
