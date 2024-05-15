@@ -84,7 +84,7 @@ fn test_handshake_client_authentication_with_no_client_settings() {
 
 #[should_panic]
 #[test]
-fn test_handshake_client_authentication_with_no_client_key() {
+fn test_handshake_client_authentication_with_no_rsa_client_key() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
 
@@ -106,7 +106,7 @@ fn test_handshake_client_authentication_with_no_client_key() {
 }
 
 #[test]
-fn test_handshake_client_authentication() {
+fn test_handshake_client_authentication_rsa() {
     let socket = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = socket.local_addr().unwrap();
 
@@ -156,7 +156,7 @@ fn test_handshake_client_authentication_with_fake_ca() {
 // key, the key management match function should report an error about the mismatched private key and
 // public key from the x509 certificate.
 #[test]
-fn test_client_with_mismatched_key_and_certificate() {
+fn test_client_with_mismatched_rsa_key_and_certificate() {
     let mut ctx_builder = SslContext::builder(SslMethod::tls_client()).unwrap();
 
     ctx_builder
