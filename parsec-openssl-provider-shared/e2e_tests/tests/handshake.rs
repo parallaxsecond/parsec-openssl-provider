@@ -200,18 +200,10 @@ fn test_handshake_client_authentication_with_fake_ca() {
 // public key from the x509 certificate.
 #[test]
 fn test_client_with_mismatched_rsa_key_and_certificate() {
-    let mut ctx_builder = SslContext::builder(SslMethod::tls_client()).unwrap();
-
-    ctx_builder
-        .set_certificate_file(
-            String::from("../../tests/tls/fake_client/parsec_rsa.pem"),
-            SslFiletype::PEM,
-        )
-        .unwrap();
-
-    ctx_builder
-        .set_private_key_file(String::from("PARSEC_TEST_RSA_KEY"), SslFiletype::PEM)
-        .unwrap_err();
+    check_mismatched_key_certificate(
+        String::from("PARSEC_TEST_RSA_KEY"),
+        String::from("../../tests/tls/fake_client/parsec_rsa.pem"),
+    );
 }
 
 // This is a negative test case. When a client is configured with a wrong certificate for a private
@@ -219,16 +211,8 @@ fn test_client_with_mismatched_rsa_key_and_certificate() {
 // public key from the x509 certificate.
 #[test]
 fn test_client_with_mismatched_ecdsa_key_and_certificate() {
-    let mut ctx_builder = SslContext::builder(SslMethod::tls_client()).unwrap();
-
-    ctx_builder
-        .set_certificate_file(
-            String::from("../../tests/tls/fake_client/parsec_ecdsa.pem"),
-            SslFiletype::PEM,
-        )
-        .unwrap();
-
-    ctx_builder
-        .set_private_key_file(String::from("PARSEC_TEST_ECDSA_KEY"), SslFiletype::PEM)
-        .unwrap_err();
+    check_mismatched_key_certificate(
+        String::from("PARSEC_TEST_ECDSA_KEY"),
+        String::from("../../tests/tls/fake_client/parsec_ecdsa.pem"),
+    );
 }

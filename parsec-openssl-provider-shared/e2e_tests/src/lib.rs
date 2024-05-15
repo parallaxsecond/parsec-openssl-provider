@@ -176,3 +176,28 @@ impl Client {
         }
     }
 }
+
+pub fn check_mismatched_key_certificate(key: String, certificate: String) {
+    unsafe {
+        let provider_path = String::from("../../target/debug/");
+        let provider_name = String::from("libparsec_openssl_provider_shared");
+        let lib_ctx = LibCtx::new().unwrap();
+        let _provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
+
+        let mut parsec_pkey: *mut EVP_PKEY = std::ptr::null_mut();
+
+        let mut ctx_builder = SslContextBuilder::new(SslMethod::tls_client()).unwrap();
+
+        ctx_builder
+            .set_certificate_file(certificate, SslFiletype::PEM)
+            .unwrap();
+
+        let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key);
+        load_key(&lib_ctx, &mut param, &mut parsec_pkey, RSA);
+
+        let key: openssl::pkey::PKey<Private> = openssl::pkey::PKey::from_ptr(parsec_pkey as _);
+
+        // The match function gets called here to compare public and private key and it should throw an error.
+        ctx_builder.set_private_key(&key).unwrap_err();
+    }
+}
