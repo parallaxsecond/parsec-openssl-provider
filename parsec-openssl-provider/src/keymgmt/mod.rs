@@ -1,17 +1,10 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::openssl_bindings::{
-    OSSL_ALGORITHM, OSSL_DISPATCH, OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_FREE,
-    OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
-    OSSL_FUNC_KEYMGMT_MATCH, OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS,
-    OSSL_FUNC_KEYMGMT_SET_PARAMS, OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS, OSSL_PARAM,
-    OSSL_PARAM_UTF8_PTR,
-};
+use crate::openssl_bindings::*;
 use crate::{
-    ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_ECDSA, PARSEC_PROVIDER_DESCRIPTION_RSA,
-    PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_KEY_NAME,
-    PARSEC_PROVIDER_RSA_NAME,
+    ParsecProviderContext, PARSEC_PROVIDER_DESCRIPTION_RSA, PARSEC_PROVIDER_DFLT_PROPERTIES,
+    PARSEC_PROVIDER_KEY_NAME, PARSEC_PROVIDER_RSA_NAME,
 };
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
@@ -20,6 +13,7 @@ use std::sync::{Arc, RwLock};
 pub struct ParsecProviderKeyObject {
     provctx: Arc<ParsecProviderContext>,
     key_name: Option<String>,
+    rsa_key: Option<RsaPublicKey>,
 }
 
 impl Clone for ParsecProviderKeyObject {
@@ -27,6 +21,7 @@ impl Clone for ParsecProviderKeyObject {
         ParsecProviderKeyObject {
             provctx: self.provctx.clone(),
             key_name: self.key_name.clone(),
+            rsa_key: self.rsa_key.clone(),
         }
     }
 }
@@ -36,6 +31,7 @@ impl ParsecProviderKeyObject {
         ParsecProviderKeyObject {
             provctx: provctx.clone(),
             key_name: None,
+            rsa_key: None,
         }
     }
 
@@ -45,6 +41,10 @@ impl ParsecProviderKeyObject {
 
     pub fn get_key_name(&self) -> &Option<String> {
         &self.key_name
+    }
+
+    pub fn get_rsa_key(&self) -> &Option<RsaPublicKey> {
+        &self.rsa_key
     }
 }
 
