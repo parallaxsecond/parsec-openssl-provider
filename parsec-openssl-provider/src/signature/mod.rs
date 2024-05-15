@@ -11,6 +11,7 @@ use crate::{
     PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_RSA_NAME,
 };
 use parsec_client::core::interface::operations::psa_algorithm::Algorithm;
+use parsec_client::core::interface::operations::psa_algorithm::Hash;
 use parsec_client::core::interface::operations::psa_key_attributes::{Attributes, EccFamily, Type};
 use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::*;
@@ -77,13 +78,12 @@ fn get_signature_len(key_attrs: Attributes) -> Result<usize, String> {
 }
 
 /*
-performs the actual signing itself. A previously initialised signature context is passed in the ctx parameter. The data
-to be signed is pointed to be the tbs parameter which is tbslen bytes long. Unless sig is NULL, the signature should be
-written to the location pointed to by the sig parameter and it should not exceed sigsize bytes in length. The length of
-the signature should be written to *siglen. If sig is NULL then the maximum length of the signature should be written
-to *siglen.
+implements a "one shot" digest sign operation previously started through
+OSSL_FUNC_signature_digeset_sign_init(). A previously initialised signature
+context is passed in the ctx parameter. The data to be signed is in tbs which
+should be tbslen bytes long.
 */
-unsafe extern "C" fn parsec_provider_signature_sign(
+unsafe extern "C" fn parsec_provider_signature_digest_sign(
     ctx: VOID_PTR,
     sig: *mut std::os::raw::c_uchar,
     siglen: *mut std::os::raw::c_uint,
@@ -100,19 +100,19 @@ unsafe extern "C" fn parsec_provider_signature_sign(
         let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
 
         let reader_sig_ctx = sig_ctx.read().unwrap();
-        let keyobj = match reader_sig_ctx.keyobj {
+        let key_data = match reader_sig_ctx.keyobj {
             None => {
                 return Err("Key Object not set. This should be done through sign_init()".into())
             }
             Some(ref keyobj) => keyobj.read().unwrap(),
         };
 
-        let key_name = match keyobj.get_key_name() {
+        let key_name = match key_data.get_key_name() {
             None => return Err("Key name not set in the Key Object".into()),
             Some(ref name) => name,
         };
 
-        let key_attributes = keyobj
+        let key_attributes = key_data
             .get_provctx()
             .get_client()
             .key_attributes(key_name)
@@ -152,10 +152,16 @@ unsafe extern "C" fn parsec_provider_signature_sign(
             }
         };
 
-        let sign_res: Vec<u8> = keyobj
+        let hash_res: Vec<u8> = key_data
             .get_provctx()
             .get_client()
-            .psa_sign_hash(key_name, tbs_slice, sign_algorithm)
+            .psa_hash_compute(Hash::Sha256, tbs_slice)
+            .map_err(|e| format!("Parsec Client failed to hash: {:?}", e))?;
+
+        let sign_res: Vec<u8> = key_data
+            .get_provctx()
+            .get_client()
+            .psa_sign_hash(key_name, &hash_res, sign_algorithm)
             .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
 
         if siglength != sign_res.len() {
@@ -176,7 +182,7 @@ unsafe extern "C" fn parsec_provider_signature_sign(
 pub type SignatureNewCtxPtr =
     unsafe extern "C" fn(VOID_PTR, *const std::os::raw::c_char) -> VOID_PTR;
 pub type SignatureFreeCtxPtr = unsafe extern "C" fn(VOID_PTR);
-pub type SignatureSignPtr = unsafe extern "C" fn(
+pub type SignatureDigestSignPtr = unsafe extern "C" fn(
     VOID_PTR,
     *mut std::os::raw::c_uchar,
     *mut std::os::raw::c_uint,
@@ -187,12 +193,18 @@ pub type SignatureSignPtr = unsafe extern "C" fn(
 
 const OSSL_FUNC_SIGNATURE_NEWCTX_PTR: SignatureNewCtxPtr = parsec_provider_signature_newctx;
 const OSSL_FUNC_SIGNATURE_FREECTX_PTR: SignatureFreeCtxPtr = parsec_provider_signature_freectx;
-const OSSL_FUNC_SIGNATURE_SIGN_PTR: SignatureSignPtr = parsec_provider_signature_sign;
+const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR: SignatureDigestSignPtr =
+    parsec_provider_signature_digest_sign;
 
 const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_FREECTX_PTR) },
-    unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_SIGN, OSSL_FUNC_SIGNATURE_SIGN_PTR) },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN,
+            OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR
+        )
+    },
     ossl_dispatch!(),
 ];
 
