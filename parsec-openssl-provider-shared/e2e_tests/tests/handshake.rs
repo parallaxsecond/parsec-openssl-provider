@@ -1,6 +1,9 @@
 // Copyright 2024 Contributors to the Parsec project.
 // SPDX-License-Identifier: Apache-2.0
 use e2e_tests::*;
+const RSA: &[u8; 8] = b"RSA-PSS\0";
+const ECDSA: &[u8; 3] = b"EC\0";
+const NONE: &[u8; 5] = b"None\0";
 
 #[test]
 fn test_handshake_no_authentication() {
@@ -16,7 +19,7 @@ fn test_handshake_no_authentication() {
     server.accept(listener);
 
     let client = Client::new(None, None, None, SslVerifyMode::NONE);
-    client.connect(addr);
+    client.connect(addr, NONE);
 }
 
 #[should_panic]
@@ -34,7 +37,7 @@ fn test_handshake_server_authentication_no_client_ca() {
     server.accept(listener);
 
     let client = Client::new(None, None, None, SslVerifyMode::PEER);
-    client.connect(addr);
+    client.connect(addr, NONE);
 }
 
 #[test]
@@ -56,7 +59,7 @@ fn test_handshake_server_authentication_with_client_ca() {
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
-    client.connect(addr);
+    client.connect(addr, NONE);
 }
 
 #[should_panic]
@@ -79,7 +82,7 @@ fn test_handshake_client_authentication_with_no_client_settings() {
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
-    client.connect(addr);
+    client.connect(addr, NONE);
 }
 
 #[should_panic]
@@ -102,7 +105,7 @@ fn test_handshake_client_authentication_with_no_rsa_client_key() {
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
-    client.connect(addr);
+    client.connect(addr, RSA);
 }
 
 #[should_panic]
@@ -125,7 +128,7 @@ fn test_handshake_client_authentication_with_no_ecdsa_client_key() {
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
-    client.connect(addr);
+    client.connect(addr, ECDSA);
 }
 
 #[test]
@@ -147,7 +150,7 @@ fn test_handshake_client_authentication_rsa() {
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
-    client.connect(addr);
+    client.connect(addr, RSA);
 }
 
 #[test]
@@ -169,7 +172,7 @@ fn test_handshake_client_authentication_ecdsa() {
         Some(String::from("../../tests/tls/ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
-    client.connect(addr);
+    client.connect(addr, ECDSA);
 }
 
 #[should_panic]
@@ -192,7 +195,7 @@ fn test_handshake_client_authentication_with_fake_ca() {
         Some(String::from("../../tests/tls/fake_ca/ca_cert.pem")),
         SslVerifyMode::PEER,
     );
-    client.connect(addr);
+    client.connect(addr, RSA);
 }
 
 // This is a negative test case. When a client is configured with a wrong certificate for a private
@@ -203,6 +206,7 @@ fn test_client_with_mismatched_rsa_key_and_certificate() {
     check_mismatched_key_certificate(
         String::from("PARSEC_TEST_RSA_KEY"),
         String::from("../../tests/tls/fake_client/parsec_rsa.pem"),
+        RSA,
     );
 }
 
@@ -214,5 +218,6 @@ fn test_client_with_mismatched_ecdsa_key_and_certificate() {
     check_mismatched_key_certificate(
         String::from("PARSEC_TEST_ECDSA_KEY"),
         String::from("../../tests/tls/fake_client/parsec_ecdsa.pem"),
+        ECDSA,
     );
 }
