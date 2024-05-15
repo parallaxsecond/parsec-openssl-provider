@@ -110,7 +110,7 @@ impl Server {
 pub struct Client {
     ssl_method: SslMethod,
     certificate: Option<String>,
-    private_key: Option<String>,
+    private_key_name: Option<String>,
     ca_certificate: Option<String>,
     ssl_mode: SslVerifyMode,
 }
@@ -118,14 +118,14 @@ pub struct Client {
 impl Client {
     pub fn new(
         cert: Option<String>,
-        key: Option<String>,
+        key_name: Option<String>,
         ca: Option<String>,
         mode: SslVerifyMode,
     ) -> Client {
         Client {
             ssl_method: SslMethod::tls_client(),
             certificate: cert,
-            private_key: key,
+            private_key_name: key_name,
             ca_certificate: ca,
             ssl_mode: mode,
         }
