@@ -219,13 +219,15 @@ OSSL_FUNC_keymgmt_import() can handle
 pub unsafe extern "C" fn parsec_provider_kmgmt_import_types(
     selection: std::os::raw::c_int,
 ) -> *const OSSL_PARAM {
-    if selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as std::os::raw::c_int != 0 {
+    if selection & OSSL_KEYMGMT_SELECT_ALL_PARAMETERS as std::os::raw::c_int != 0 {
         static ONCE_INIT: std::sync::Once = std::sync::Once::new();
-        static mut IMPORT_TYPES_TABLE: [OSSL_PARAM; 2] = [ossl_param!(); 2];
+        static mut IMPORT_TYPES_TABLE: [OSSL_PARAM; 4] = [ossl_param!(); 4];
 
         ONCE_INIT.call_once(|| {
             IMPORT_TYPES_TABLE = [
                 ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR),
+                ossl_param!(OSSL_PKEY_PARAM_RSA_N, OSSL_PARAM_UNSIGNED_INTEGER),
+                ossl_param!(OSSL_PKEY_PARAM_RSA_E, OSSL_PARAM_UNSIGNED_INTEGER),
                 ossl_param!(),
             ];
         });
