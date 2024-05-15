@@ -215,6 +215,79 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign_init(
     }
 }
 
+unsafe extern "C" fn parsec_provider_signature_settable_params(
+    _ctx: VOID_PTR,
+    _provkey: VOID_PTR,
+) -> *const OSSL_PARAM {
+    static ONCE_INIT: std::sync::Once = std::sync::Once::new();
+    static mut SIGCTX_GETTABLE_TABLE: [OSSL_PARAM; 3] = [ossl_param!(); 3];
+
+    ONCE_INIT.call_once(|| {
+        SIGCTX_GETTABLE_TABLE = [
+            ossl_param!(OSSL_SIGNATURE_PARAM_PAD_MODE, OSSL_PARAM_UTF8_STRING),
+            ossl_param!(OSSL_SIGNATURE_PARAM_PSS_SALTLEN, OSSL_PARAM_UTF8_STRING),
+            ossl_param!(),
+        ];
+    });
+    SIGCTX_GETTABLE_TABLE.as_ptr() as _
+}
+
+/*
+Sets the context parameters for RSA signature
+*/
+pub unsafe extern "C" fn parsec_provider_signature_set_params(
+    _keydata: VOID_PTR,
+    params: *const OSSL_PARAM,
+) -> std::os::raw::c_int {
+    // Currently we only support PSS paddding mode with a Salt length of 32 bytes equivalent to the
+    // hash length. So we only check for these values here and not update the signature context
+    // object with it.
+
+    // Check the padding mode
+    if let Ok(param) = openssl_returns_nonnull_const(openssl_bindings::OSSL_PARAM_locate_const(
+        params,
+        OSSL_SIGNATURE_PARAM_PAD_MODE.as_ptr() as _,
+    )) {
+        if (*param).data_type == OSSL_PARAM_UTF8_STRING {
+            let pad_mode: &[u8] =
+                core::slice::from_raw_parts((*param).data as *mut u8, (*param).data_size);
+            if pad_mode != OSSL_PKEY_RSA_PAD_MODE_PSS {
+                return OPENSSL_ERROR;
+            }
+        }
+        if (*param).data_type == OSSL_PARAM_INTEGER {
+            let pad_mode: &[u8] =
+                core::slice::from_raw_parts((*param).data as *mut u8, (*param).data_size);
+            if pad_mode[0] != 6 {
+                return OPENSSL_ERROR;
+            }
+        }
+    }
+
+    // Check the salt length
+    if let Ok(param) = openssl_returns_nonnull_const(openssl_bindings::OSSL_PARAM_locate_const(
+        params,
+        OSSL_SIGNATURE_PARAM_PSS_SALTLEN.as_ptr() as _,
+    )) {
+        if (*param).data_type == OSSL_PARAM_UTF8_STRING {
+            let salt_len: &[u8] =
+                core::slice::from_raw_parts((*param).data as *const u8, (*param).data_size);
+            if *salt_len != OSSL_PKEY_RSA_PSS_SALT_LEN_DIGEST[..6] {
+                return OPENSSL_ERROR;
+            }
+        }
+        if (*param).data_type == OSSL_PARAM_INTEGER {
+            let salt_len: &mut [u8] =
+                core::slice::from_raw_parts_mut((*param).data as *mut u8, (*param).data_size);
+            if salt_len[0] != 32 {
+                return OPENSSL_ERROR;
+            }
+        }
+    }
+
+    OPENSSL_SUCCESS
+}
+
 pub type SignatureNewCtxPtr =
     unsafe extern "C" fn(VOID_PTR, *const std::os::raw::c_char) -> VOID_PTR;
 pub type SignatureFreeCtxPtr = unsafe extern "C" fn(VOID_PTR);
@@ -234,6 +307,16 @@ pub type SignatureDigestSignInitPtr = unsafe extern "C" fn(
     *const OSSL_PARAM,
 ) -> std::os::raw::c_int;
 
+const OSSL_FUNC_SIGNATURE_SETTABLE_PARAMS_PTR: SignatureSettableParamsPtr =
+    parsec_provider_signature_settable_params;
+
+const OSSL_FUNC_SIGNATURE_SET_PARAMS_PTR: SignatureSetParamsPtr =
+    parsec_provider_signature_set_params;
+pub type SignatureSettableParamsPtr = unsafe extern "C" fn(VOID_PTR, VOID_PTR) -> *const OSSL_PARAM;
+
+pub type SignatureSetParamsPtr =
+    unsafe extern "C" fn(VOID_PTR, *const OSSL_PARAM) -> std::os::raw::c_int;
+
 const OSSL_FUNC_SIGNATURE_NEWCTX_PTR: SignatureNewCtxPtr = parsec_provider_signature_newctx;
 const OSSL_FUNC_SIGNATURE_FREECTX_PTR: SignatureFreeCtxPtr = parsec_provider_signature_freectx;
 const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR: SignatureDigestSignPtr =
@@ -242,7 +325,7 @@ const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR: SignatureDigestSignPtr =
 const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT_PTR: SignatureDigestSignInitPtr =
     parsec_provider_signature_digest_sign_init;
 
-const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
+const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 7] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_FREECTX_PTR) },
     unsafe {
@@ -255,6 +338,18 @@ const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 5] = [
         ossl_dispatch!(
             OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT,
             OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_SETTABLE_CTX_PARAMS,
+            OSSL_FUNC_SIGNATURE_SETTABLE_PARAMS_PTR
+        )
+    },
+    unsafe {
+        ossl_dispatch!(
+            OSSL_FUNC_SIGNATURE_SET_CTX_PARAMS,
+            OSSL_FUNC_SIGNATURE_SET_PARAMS_PTR
         )
     },
     ossl_dispatch!(),
