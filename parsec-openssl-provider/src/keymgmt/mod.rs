@@ -59,7 +59,7 @@ impl ParsecProviderKeyObject {
     }
 }
 
-// Ec supported curve name
+// Ec supported curve name. This is the only supported curve name.
 const EC_CURVE_NAME: &str = "prime256v1\0";
 /*
 should create a provider side key object. The provider context provctx is passed and may be incorporated
@@ -138,25 +138,28 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_rsa_get_params(
     keydata: VOID_PTR,
     params: *mut OSSL_PARAM,
 ) -> std::os::raw::c_int {
-    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_GET_PARAMS), || {
-        if keydata.is_null() || params.is_null() {
-            Err("Null pointer received as parameter".into())
-        } else {
-            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
-            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
-            let reader_key_data = key_data.read().unwrap();
+    let result = super::r#catch(
+        Some(|| super::Error::PROVIDER_KEYMGMT_RSA_GET_PARAMS),
+        || {
+            if keydata.is_null() || params.is_null() {
+                Err("Null pointer received as parameter".into())
+            } else {
+                Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+                let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+                let reader_key_data = key_data.read().unwrap();
 
-            if let Some(public_key) = reader_key_data.get_rsa_key() {
-                let modulus = public_key.modulus.as_unsigned_bytes_be();
+                if let Some(public_key) = reader_key_data.get_rsa_key() {
+                    let modulus = public_key.modulus.as_unsigned_bytes_be();
 
-                locate_and_set_int_param(OSSL_PKEY_PARAM_BITS, modulus.len() * 8, params)?;
-                locate_and_set_int_param(OSSL_PKEY_PARAM_SECURITY_BITS, 112, params)?;
-                locate_and_set_int_param(OSSL_PKEY_PARAM_MAX_SIZE, modulus.len(), params)?;
+                    locate_and_set_int_param(OSSL_PKEY_PARAM_BITS, modulus.len() * 8, params)?;
+                    locate_and_set_int_param(OSSL_PKEY_PARAM_SECURITY_BITS, 112, params)?;
+                    locate_and_set_int_param(OSSL_PKEY_PARAM_MAX_SIZE, modulus.len(), params)?;
+                }
+
+                Ok(OPENSSL_SUCCESS)
             }
-
-            Ok(OPENSSL_SUCCESS)
-        }
-    });
+        },
+    );
 
     match result {
         Ok(result) => result,
@@ -178,55 +181,59 @@ fn get_ec_secbits(bits: usize) -> usize {
     if bits < 512 {
         return 192;
     }
-    return 256;
+    256
 }
 
 pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_get_params(
     keydata: VOID_PTR,
     params: *mut OSSL_PARAM,
 ) -> std::os::raw::c_int {
-    let result = super::r#catch(Some(|| super::Error::PROVIDER_KEYMGMT_GET_PARAMS), || {
-        if keydata.is_null() || params.is_null() {
-            Err("Null pointer received as parameter".into())
-        } else {
-            Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
-            let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
-            let reader_key_data = key_data.read().unwrap();
+    let result = super::r#catch(
+        Some(|| super::Error::PROVIDER_KEYMGMT_ECDSA_GET_PARAMS),
+        || {
+            if keydata.is_null() || params.is_null() {
+                Err("Null pointer received as parameter".into())
+            } else {
+                Arc::increment_strong_count(keydata as *const RwLock<ParsecProviderKeyObject>);
+                let key_data = Arc::from_raw(keydata as *const RwLock<ParsecProviderKeyObject>);
+                let reader_key_data = key_data.read().unwrap();
 
-            let key_name = match reader_key_data.key_name {
-                None => return Err("Key name is not set".to_string().into()),
-                Some(ref name) => name,
-            };
+                let key_name = match reader_key_data.key_name {
+                    None => return Err("Key name is not set".to_string().into()),
+                    Some(ref name) => name,
+                };
 
-            let key_attrs = reader_key_data
-                .provctx
-                .get_client()
-                .key_attributes(key_name)
-                .map_err(|e| format!("Failed to retrived key attributes: {}", e))?;
+                let key_attrs = reader_key_data
+                    .provctx
+                    .get_client()
+                    .key_attributes(key_name)
+                    .map_err(|e| format!("Failed to retrived key attributes: {}", e))?;
 
-            if let Ok(ptr) = openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
-                params,
-                OSSL_PKEY_PARAM_GROUP_NAME.as_ptr() as *const std::os::raw::c_char,
-            )) {
-                let mut s = EC_CURVE_NAME.to_string();
-                (*ptr).data_type = OSSL_PARAM_UTF8_STRING;
-                (*ptr).return_size = s.len();
-                std::ptr::copy(s.as_mut_ptr() as _, (*ptr).data, s.len());
+                if let Ok(ptr) = openssl_returns_nonnull(openssl_bindings::OSSL_PARAM_locate(
+                    params,
+                    OSSL_PKEY_PARAM_GROUP_NAME.as_ptr() as *const std::os::raw::c_char,
+                )) {
+                    // This is the only supported curve name
+                    let mut s = EC_CURVE_NAME.to_string();
+                    (*ptr).data_type = OSSL_PARAM_UTF8_STRING;
+                    (*ptr).return_size = s.len();
+                    std::ptr::copy(s.as_mut_ptr() as _, (*ptr).data, s.len());
+                }
+                let _ = locate_and_set_int_param(OSSL_PKEY_PARAM_BITS, key_attrs.bits, params);
+                let _ = locate_and_set_int_param(
+                    OSSL_PKEY_PARAM_SECURITY_BITS,
+                    get_ec_secbits(key_attrs.bits),
+                    params,
+                );
+                let _ = locate_and_set_int_param(
+                    OSSL_PKEY_PARAM_MAX_SIZE,
+                    3 + (key_attrs.bits + 4) * 2,
+                    params,
+                );
+                Ok(OPENSSL_SUCCESS)
             }
-            let _ = locate_and_set_int_param(OSSL_PKEY_PARAM_BITS, key_attrs.bits, params);
-            let _ = locate_and_set_int_param(
-                OSSL_PKEY_PARAM_SECURITY_BITS,
-                get_ec_secbits(key_attrs.bits),
-                params,
-            );
-            let _ = locate_and_set_int_param(
-                OSSL_PKEY_PARAM_MAX_SIZE,
-                (3 + (key_attrs.bits + 4) * 2).try_into().unwrap(),
-                params,
-            );
-            Ok(OPENSSL_SUCCESS)
-        }
-    });
+        },
+    );
 
     match result {
         Ok(result) => result,
@@ -458,12 +465,9 @@ pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_import(
                     .psa_export_public_key(
                         std::str::from_utf8(key_name).map_err(|e| format!("{:?}", e))?,
                     )
-                    .map_err(|e| {
-                        format!("Parsec Client failed to export public key: {:?}", e)
-                    })?;
+                    .map_err(|e| format!("Parsec Client failed to export public key: {:?}", e))?;
                 let mut big_num_context = openssl::bn::BigNumContext::new()?;
-                let point =
-                    openssl::ec::EcPoint::from_bytes(&group, &point, &mut big_num_context)?;
+                let point = openssl::ec::EcPoint::from_bytes(&group, &point, &mut big_num_context)?;
                 writer_key_data.ecdsa_key = Some(point);
             } else {
                 return Err("Invalid key name".to_string().into());
@@ -590,9 +594,7 @@ pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_import_types(
         static mut IMPORT_TYPES_TABLE: [OSSL_PARAM; 1] = [ossl_param!(); 1];
 
         ONCE_INIT.call_once(|| {
-            IMPORT_TYPES_TABLE = [
-                ossl_param!(),
-            ];
+            IMPORT_TYPES_TABLE = [ossl_param!()];
         });
 
         IMPORT_TYPES_TABLE.as_ptr()
@@ -681,13 +683,15 @@ pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_match(
                     group.set_asn1_flag(openssl::ec::Asn1Flag::NAMED_CURVE);
 
                     let mut big_num_context = openssl::bn::BigNumContext::new()?;
-                    let are_equal = a.eq(group.as_ref(), b, &mut big_num_context).map_err(|e| format!("Failed to match keys: {}", e))?;
+                    let are_equal = a
+                        .eq(group.as_ref(), b, &mut big_num_context)
+                        .map_err(|e| format!("Failed to match keys: {}", e))?;
                     if are_equal {
                         Ok(OPENSSL_SUCCESS)
                     } else {
                         Err("Keys do not match".into())
                     }
-                },
+                }
                 _ => Err("Keys do not match".into()),
             }
         } else {
@@ -730,7 +734,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_rsa_query_operation_name(
 pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_query_operation_name(
     _operation_id: std::os::raw::c_int,
 ) -> *const std::os::raw::c_char {
-    return PARSEC_PROVIDER_ECDSA_NAME.as_ptr() as *const std::os::raw::c_char;
+    PARSEC_PROVIDER_ECDSA_NAME.as_ptr() as *const std::os::raw::c_char
 }
 
 const OSSL_FUNC_KEYMGMT_RSA_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
@@ -768,7 +772,8 @@ const OSSL_FUNC_KEYMGMT_RSA_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
 const OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
     parsec_provider_ecdsa_kmgmt_import_types;
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
-const OSSL_FUNC_KEYMGMT_RSA_GET_PARAMS_PTR: KeyMgmtGetParamsPtr = parsec_provider_kmgmt_rsa_get_params;
+const OSSL_FUNC_KEYMGMT_RSA_GET_PARAMS_PTR: KeyMgmtGetParamsPtr =
+    parsec_provider_kmgmt_rsa_get_params;
 const OSSL_FUNC_KEYMGMT_ECDSA_GET_PARAMS_PTR: KeyMgmtGetParamsPtr =
     parsec_provider_ecdsa_kmgmt_get_params;
 const OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS_PTR: KeyMgmtSettableParamsPtr =

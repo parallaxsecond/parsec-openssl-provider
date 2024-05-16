@@ -96,91 +96,96 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign(
     tbs: *const std::os::raw::c_uchar,
     tbslen: std::os::raw::c_uint,
 ) -> std::os::raw::c_int {
-    let result = super::r#catch(Some(|| super::Error::PROVIDER_SIGNATURE_DIGEST_SIGN), || {
-        if ctx.is_null() || siglen.is_null() {
-            return Err("Received unexpected NULL pointer as an argument.".into());
-        }
-
-        Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
-        let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
-
-        let reader_sig_ctx = sig_ctx.read().unwrap();
-        let key_data = match reader_sig_ctx.keyobj {
-            None => {
-                return Err("Key Object not set. This should be done through sign_init()".into())
+    let result = super::r#catch(
+        Some(|| super::Error::PROVIDER_SIGNATURE_DIGEST_SIGN),
+        || {
+            if ctx.is_null() || siglen.is_null() {
+                return Err("Received unexpected NULL pointer as an argument.".into());
             }
-            Some(ref keyobj) => keyobj.read().unwrap(),
-        };
 
-        let key_name = match key_data.get_key_name() {
-            None => return Err("Key name not set in the Key Object".into()),
-            Some(ref name) => name,
-        };
+            Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
+            let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
 
-        let key_attributes = key_data
-            .get_provctx()
-            .get_client()
-            .key_attributes(key_name)
-            .map_err(|e| format!("Failed to get specified key's attributes: {}", e))?;
-        let siglength = get_signature_len(key_attributes).map_err(|e| {
-            format!(
-                "Failed to Get correct signature length for the given key:  {}",
-                e
-            )
-        })?;
+            let reader_sig_ctx = sig_ctx.read().unwrap();
+            let key_data = match reader_sig_ctx.keyobj {
+                None => {
+                    return Err(
+                        "Key Object not set. This should be done through sign_init()".into(),
+                    )
+                }
+                Some(ref keyobj) => keyobj.read().unwrap(),
+            };
 
-        if sig.is_null() {
-            *siglen = siglength as std::os::raw::c_uint;
-            return Ok(OPENSSL_SUCCESS);
-        }
+            let key_name = match key_data.get_key_name() {
+                None => return Err("Key name not set in the Key Object".into()),
+                Some(ref name) => name,
+            };
 
-        if (sigsize as usize) < siglength {
-            return Err(format!(
-                "Signature length is bigger than sigsize. Signature length: {}",
-                siglength
-            )
-            .into());
-        }
-
-        if tbs.is_null() {
-            return Err("Received unexpected NULL pointer as an argument.".into());
-        }
-
-        let tbs_slice: &[u8] = core::slice::from_raw_parts(tbs, tbslen as usize);
-
-        let sign_algorithm = match key_attributes.policy.permitted_algorithms {
-            Algorithm::AsymmetricSignature(signature_algo) => signature_algo,
-            _ => {
-                return Err(
-                    "Specified key does not permit the AsymmetricSignature algorithm".into(),
+            let key_attributes = key_data
+                .get_provctx()
+                .get_client()
+                .key_attributes(key_name)
+                .map_err(|e| format!("Failed to get specified key's attributes: {}", e))?;
+            let siglength = get_signature_len(key_attributes).map_err(|e| {
+                format!(
+                    "Failed to Get correct signature length for the given key:  {}",
+                    e
                 )
+            })?;
+
+            if sig.is_null() {
+                *siglen = siglength as std::os::raw::c_uint;
+                return Ok(OPENSSL_SUCCESS);
             }
-        };
 
-        let hash_res: Vec<u8> = key_data
-            .get_provctx()
-            .get_client()
-            .psa_hash_compute(Hash::Sha256, tbs_slice)
-            .map_err(|e| format!("Parsec Client failed to hash: {:?}", e))?;
+            if (sigsize as usize) < siglength {
+                return Err(format!(
+                    "Signature length is bigger than sigsize. Signature length: {}",
+                    siglength
+                )
+                .into());
+            }
 
-        let mut sign_res: Vec<u8> = key_data
-            .get_provctx()
-            .get_client()
-            .psa_sign_hash(key_name, &hash_res, sign_algorithm)
-            .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
+            if tbs.is_null() {
+                return Err("Received unexpected NULL pointer as an argument.".into());
+            }
 
-        if sign_algorithm.is_ecc_alg() {
-            let s = IntegerAsn1::from_bytes_be_unsigned(sign_res.split_off(sign_res.len() / 2));
-            sign_res = picky_asn1_der::to_vec(&EccSignature {
-                r: IntegerAsn1::from_bytes_be_unsigned(sign_res),
-                s,
-            })
-            .map_err(|e| format!("Failed to convert ECC Signature: {:?}", e))?;
-        }
-        std::ptr::copy(sign_res.as_ptr(), sig, sign_res.len());
-        *siglen = sign_res.len() as u32;
-        Ok(OPENSSL_SUCCESS)
-    });
+            let tbs_slice: &[u8] = core::slice::from_raw_parts(tbs, tbslen as usize);
+
+            let sign_algorithm = match key_attributes.policy.permitted_algorithms {
+                Algorithm::AsymmetricSignature(signature_algo) => signature_algo,
+                _ => {
+                    return Err(
+                        "Specified key does not permit the AsymmetricSignature algorithm".into(),
+                    )
+                }
+            };
+
+            let hash_res: Vec<u8> = key_data
+                .get_provctx()
+                .get_client()
+                .psa_hash_compute(Hash::Sha256, tbs_slice)
+                .map_err(|e| format!("Parsec Client failed to hash: {:?}", e))?;
+
+            let mut sign_res: Vec<u8> = key_data
+                .get_provctx()
+                .get_client()
+                .psa_sign_hash(key_name, &hash_res, sign_algorithm)
+                .map_err(|e| format!("Parsec Client failed to sign: {:?}", e))?;
+
+            if sign_algorithm.is_ecc_alg() {
+                let s = IntegerAsn1::from_bytes_be_unsigned(sign_res.split_off(sign_res.len() / 2));
+                sign_res = picky_asn1_der::to_vec(&EccSignature {
+                    r: IntegerAsn1::from_bytes_be_unsigned(sign_res),
+                    s,
+                })
+                .map_err(|e| format!("Failed to convert ECC Signature: {:?}", e))?;
+            }
+            std::ptr::copy(sign_res.as_ptr(), sig, sign_res.len());
+            *siglen = sign_res.len() as u32;
+            Ok(OPENSSL_SUCCESS)
+        },
+    );
 
     match result {
         Ok(result) => result,
@@ -194,49 +199,50 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign_init(
     provkey: VOID_PTR,
     params: *const OSSL_PARAM,
 ) -> std::os::raw::c_int {
-    let result = super::r#catch(Some(|| super::Error::PROVIDER_SIGNATURE_DIGEST_SIGN_INIT), || {
-        if ctx.is_null() || provkey.is_null() {
-            return Err("Neither ctx nor provkey pointers should be NULL.".into());
-        }
-
-        Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
-        let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
-        let mut writer_sig_ctx = sig_ctx.write().unwrap();
-        Arc::increment_strong_count(provkey as *const RwLock<ParsecProviderKeyObject>);
-        let prov_key = Arc::from_raw(provkey as *const RwLock<ParsecProviderKeyObject>);
-
-        writer_sig_ctx.keyobj = Some(prov_key.clone());
-        let key_data = match writer_sig_ctx.keyobj {
-            None => {
-                return Err("Key Object not set.".into())
+    let result = super::r#catch(
+        Some(|| super::Error::PROVIDER_SIGNATURE_DIGEST_SIGN_INIT),
+        || {
+            if ctx.is_null() || provkey.is_null() {
+                return Err("Neither ctx nor provkey pointers should be NULL.".into());
             }
-            Some(ref keyobj) => keyobj.read().unwrap(),
-        };
 
-        let key_name = match key_data.get_key_name() {
-            None => return Err("Key name not set in the Key Object".into()),
-            Some(ref name) => name,
-        };
-        // Currently we only support SHA256 hash function.
-        // Return error if any other function is selected.
-        if let Ok(hash_function) = CStr::from_ptr(mdname).to_str() {
-            if hash_function != "SHA256" && hash_function != "SHA2-256" {
-                return Err("Invalid hash function".into());
+            Arc::increment_strong_count(ctx as *const RwLock<ParsecProviderSignatureContext>);
+            let sig_ctx = Arc::from_raw(ctx as *const RwLock<ParsecProviderSignatureContext>);
+            let mut writer_sig_ctx = sig_ctx.write().unwrap();
+            Arc::increment_strong_count(provkey as *const RwLock<ParsecProviderKeyObject>);
+            let prov_key = Arc::from_raw(provkey as *const RwLock<ParsecProviderKeyObject>);
+
+            writer_sig_ctx.keyobj = Some(prov_key.clone());
+            let key_data = match writer_sig_ctx.keyobj {
+                None => return Err("Key Object not set.".into()),
+                Some(ref keyobj) => keyobj.read().unwrap(),
+            };
+
+            let key_name = match key_data.get_key_name() {
+                None => return Err("Key name not set in the Key Object".into()),
+                Some(ref name) => name,
+            };
+            // Currently we only support SHA256 hash function.
+            // Return error if any other function is selected.
+            if let Ok(hash_function) = CStr::from_ptr(mdname).to_str() {
+                if hash_function != "SHA256" && hash_function != "SHA2-256" {
+                    return Err("Invalid hash function".into());
+                }
             }
-        }
-        let key_attributes = key_data
-            .get_provctx()
-            .get_client()
-            .key_attributes(key_name)
-            .map_err(|e| format!("Failed to get specified key's attributes: {}", e))?;
-        match key_attributes.key_type {
-            Type::RsaKeyPair => Ok(parsec_provider_signature_rsa_set_params(ctx, params)),
-            Type::EccKeyPair {
-                curve_family: EccFamily::SecpR1,
-            } => Ok(parsec_provider_signature_ecdsa_set_params(ctx, params)),
-            _ => Err("Key type not recognized".to_string().into()),
-        }
-    });
+            let key_attributes = key_data
+                .get_provctx()
+                .get_client()
+                .key_attributes(key_name)
+                .map_err(|e| format!("Failed to get specified key's attributes: {}", e))?;
+            match key_attributes.key_type {
+                Type::RsaKeyPair => Ok(parsec_provider_signature_rsa_set_params(ctx, params)),
+                Type::EccKeyPair {
+                    curve_family: EccFamily::SecpR1,
+                } => Ok(parsec_provider_signature_ecdsa_set_params(ctx, params)),
+                _ => Err("Key type not recognized".to_string().into()),
+            }
+        },
+    );
 
     match result {
         Ok(result) => result,
