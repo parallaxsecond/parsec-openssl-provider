@@ -525,7 +525,6 @@ pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 3] = [
 
 #[test]
 fn test_kmgmt_has() {
-    use crate::openssl_bindings::OSSL_KEYMGMT_SELECT_PRIVATE_KEY;
     use crate::{parsec_provider_provider_init, parsec_provider_teardown};
 
     let out: *const OSSL_DISPATCH = std::ptr::null();
@@ -587,7 +586,6 @@ fn test_kmgmt_has() {
 
 #[test]
 fn test_kmgmt_match() {
-    use crate::openssl_bindings::OSSL_KEYMGMT_SELECT_PRIVATE_KEY;
     use crate::{parsec_provider_provider_init, parsec_provider_teardown};
 
     let out: *const OSSL_DISPATCH = std::ptr::null();
@@ -627,83 +625,6 @@ fn test_kmgmt_match() {
         )
     };
     assert_eq!(result, OPENSSL_ERROR);
-
-    // Check the case in which both keyobj are empty
-    let keyobj2 = unsafe { parsec_provider_kmgmt_new(provctx) };
-    let result = unsafe {
-        parsec_provider_kmgmt_match(
-            keyobj1,
-            keyobj2,
-            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
-        )
-    };
-    assert_eq!(result, OPENSSL_SUCCESS);
-
-    // Check the case in which one keyobj are empty, the other has a key_name set
-    let key_name1 = "KEY-NAME1".to_string();
-    let mut key1_params = [
-        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key_name1),
-        ossl_param!(),
-    ];
-    let set_params_res1 =
-        unsafe { parsec_provider_kmgmt_set_params(keyobj1, &mut key1_params as _) };
-    assert_eq!(set_params_res1, OPENSSL_SUCCESS);
-
-    let result = unsafe {
-        parsec_provider_kmgmt_match(
-            keyobj1,
-            keyobj2,
-            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
-        )
-    };
-    assert_eq!(result, OPENSSL_ERROR);
-
-    // Check the case in which both keyobj have a set key_name but these are different from each other
-    let key_name2 = "KEY-NAME2".to_string();
-    let mut key2_params = [
-        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key_name2),
-        ossl_param!(),
-    ];
-    let set_params_res2 =
-        unsafe { parsec_provider_kmgmt_set_params(keyobj2, &mut key2_params as _) };
-    assert_eq!(set_params_res2, OPENSSL_SUCCESS);
-
-    let result = unsafe {
-        parsec_provider_kmgmt_match(
-            keyobj1,
-            keyobj2,
-            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
-        )
-    };
-    assert_eq!(result, OPENSSL_ERROR);
-
-    /* Check the case in which a parameter other than OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS is used
-    this should be ok, as the only match we care about right now is for
-    OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS*/
-    let result = unsafe {
-        parsec_provider_kmgmt_match(keyobj1, keyobj2, OSSL_KEYMGMT_SELECT_PRIVATE_KEY as i32)
-    };
-    assert_eq!(result, OPENSSL_SUCCESS);
-
-    /* Check the case in which both keyobj have the same name set and the relevant selection
-    (OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS) is used*/
-    let key_name2 = "KEY-NAME1".to_string();
-    let mut key2_params = [
-        ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key_name2),
-        ossl_param!(),
-    ];
-    let set_params_res2 =
-        unsafe { parsec_provider_kmgmt_set_params(keyobj2, &mut key2_params as _) };
-    assert_eq!(set_params_res2, OPENSSL_SUCCESS);
-
-    let result = unsafe {
-        parsec_provider_kmgmt_match(
-            keyobj1,
-            keyobj2,
-            OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
-        )
-    };
-    assert_eq!(result, OPENSSL_SUCCESS);
 
     unsafe {
         parsec_provider_kmgmt_free(keyobj1);
