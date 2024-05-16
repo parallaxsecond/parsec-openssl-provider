@@ -487,7 +487,7 @@ pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_import(
 /*
 should import data indicated by selection into keydata with values taken from the OSSL_PARAM array params
 */
-pub unsafe extern "C" fn parsec_provider_kmgmt_import(
+pub unsafe extern "C" fn parsec_provider_kmgmt_rsa_import(
     keydata: VOID_PTR,
     selection: std::os::raw::c_int,
     params: *mut OSSL_PARAM,
@@ -556,7 +556,7 @@ pub unsafe extern "C" fn parsec_provider_kmgmt_import(
 should return an array of descriptor OSSL_PARAM for data indicated by selection, for parameters that
 OSSL_FUNC_keymgmt_import() can handle
 */
-pub unsafe extern "C" fn parsec_provider_kmgmt_import_types(
+pub unsafe extern "C" fn parsec_provider_kmgmt_rsa_import_types(
     selection: std::os::raw::c_int,
 ) -> *const OSSL_PARAM {
     if selection & OSSL_KEYMGMT_SELECT_ALL_PARAMETERS as std::os::raw::c_int != 0 {
@@ -721,7 +721,7 @@ pub unsafe extern "C" fn parsec_provider_keymgmt_dup(
     }
 }
 
-pub unsafe extern "C" fn parsec_provider_kmgmt_query_operation_name(
+pub unsafe extern "C" fn parsec_provider_kmgmt_rsa_query_operation_name(
     _operation_id: std::os::raw::c_int,
 ) -> *const std::os::raw::c_char {
     PARSEC_PROVIDER_RSA_NAME.as_ptr() as *const std::os::raw::c_char
@@ -733,8 +733,8 @@ pub unsafe extern "C" fn parsec_provider_ecdsa_kmgmt_query_operation_name(
     return PARSEC_PROVIDER_ECDSA_NAME.as_ptr() as *const std::os::raw::c_char;
 }
 
-const OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
-    parsec_provider_kmgmt_query_operation_name;
+const OSSL_FUNC_KEYMGMT_RSA_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
+    parsec_provider_kmgmt_rsa_query_operation_name;
 const OSSL_FUNC_KEYMGMT_ECDSA_QUERY_OPERATION_NAME_PTR: KeyMgmtQueryOperationNamePtr =
     parsec_provider_ecdsa_kmgmt_query_operation_name;
 pub type KeyMgmtQueryOperationNamePtr =
@@ -761,10 +761,10 @@ const OSSL_FUNC_KEYMGMT_NEW_PTR: KeyMgmtNewPtr = parsec_provider_kmgmt_new;
 const OSSL_FUNC_KEYMGMT_FREE_PTR: KeyMgmtFreePtr = parsec_provider_kmgmt_free;
 const OSSL_FUNC_KEYMGMT_HAS_PTR: KeyMgmtHasPtr = parsec_provider_kmgmt_has;
 const OSSL_FUNC_KEYMGMT_ECDSA_HAS_PTR: KeyMgmtHasPtr = parsec_provider_ecdsa_kmgmt_has;
-const OSSL_FUNC_KEYMGMT_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_import;
+const OSSL_FUNC_KEYMGMT_RSA_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_kmgmt_rsa_import;
 const OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_PTR: KeyMgmtImportPtr = parsec_provider_ecdsa_kmgmt_import;
-const OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
-    parsec_provider_kmgmt_import_types;
+const OSSL_FUNC_KEYMGMT_RSA_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
+    parsec_provider_kmgmt_rsa_import_types;
 const OSSL_FUNC_KEYMGMT_ECDSA_IMPORT_TYPES_PTR: KeyMgmtImportTypesPtr =
     parsec_provider_ecdsa_kmgmt_import_types;
 const OSSL_FUNC_KEYMGMT_SET_PARAMS_PTR: KeyMgmtSetParamsPtr = parsec_provider_kmgmt_set_params;
@@ -779,22 +779,22 @@ const OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS_PTR: KeyMgmtGettableParamsPtr =
 const OSSL_FUNC_KEYMGMT_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_kmgmt_match;
 const OSSL_FUNC_KEYMGMT_ECDSA_MATCH_PTR: KeyMgmtMatchPtr = parsec_provider_ecdsa_kmgmt_match;
 
-const PARSEC_PROVIDER_KEYMGMT_IMPL: [OSSL_DISPATCH; 13] = [
+const PARSEC_PROVIDER_KEYMGMT_RSA_IMPL: [OSSL_DISPATCH; 13] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_DUP, OSSL_FUNC_KEYMGMT_DUP_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_NEW, OSSL_FUNC_KEYMGMT_NEW_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_FREE, OSSL_FUNC_KEYMGMT_FREE_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_HAS, OSSL_FUNC_KEYMGMT_HAS_PTR) },
-    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_IMPORT_PTR) },
+    unsafe { ossl_dispatch!(OSSL_FUNC_KEYMGMT_IMPORT, OSSL_FUNC_KEYMGMT_RSA_IMPORT_PTR) },
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_IMPORT_TYPES,
-            OSSL_FUNC_KEYMGMT_IMPORT_TYPES_PTR
+            OSSL_FUNC_KEYMGMT_RSA_IMPORT_TYPES_PTR
         )
     },
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
-            OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME_PTR
+            OSSL_FUNC_KEYMGMT_RSA_QUERY_OPERATION_NAME_PTR
         )
     },
     unsafe {
@@ -880,7 +880,7 @@ pub const PARSEC_PROVIDER_KEYMGMT: [OSSL_ALGORITHM; 3] = [
     ossl_algorithm!(
         PARSEC_PROVIDER_RSA_NAME,
         PARSEC_PROVIDER_DFLT_PROPERTIES,
-        PARSEC_PROVIDER_KEYMGMT_IMPL,
+        PARSEC_PROVIDER_KEYMGMT_RSA_IMPL,
         PARSEC_PROVIDER_DESCRIPTION_RSA
     ),
     ossl_algorithm!(),
@@ -1023,7 +1023,7 @@ fn test_kmgmt_import() {
         ossl_param!(),
     ];
     let bad_import_res = unsafe {
-        parsec_provider_kmgmt_import(
+        parsec_provider_kmgmt_rsa_import(
             keyctx,
             OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
             &mut bad_params as _,
@@ -1039,7 +1039,7 @@ fn test_kmgmt_import() {
     ];
 
     let good_import_res = unsafe {
-        parsec_provider_kmgmt_import(
+        parsec_provider_kmgmt_rsa_import(
             keyctx,
             OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS as i32,
             &mut good_params as _,
