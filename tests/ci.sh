@@ -89,7 +89,9 @@ if [ "$TEST" == "True" ]; then
 
     if [ "$CREATE_KEYS" == "True" ]; then
         parsec-tool create-rsa-key -r -b 2048 -k PARSEC_TEST_RSA_KEY
+        parsec-tool create-rsa-key -r -b 2048 -k PARSEC_FAKE_RSA_KEY
         parsec-tool create-ecc-key -k PARSEC_TEST_ECDSA_KEY
+        parsec-tool create-ecc-key -k PARSEC_FAKE_ECDSA_KEY
     fi
 
     # Try loading the built parsec provider 
