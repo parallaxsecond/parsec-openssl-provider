@@ -230,7 +230,7 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign_init(
             .key_attributes(key_name)
             .map_err(|e| format!("Failed to get specified key's attributes: {}", e))?;
         match key_attributes.key_type {
-            Type::RsaKeyPair => Ok(parsec_provider_signature_set_params(ctx, params)),
+            Type::RsaKeyPair => Ok(parsec_provider_signature_rsa_set_params(ctx, params)),
             Type::EccKeyPair {
                 curve_family: EccFamily::SecpR1,
             } => Ok(parsec_provider_signature_ecdsa_set_params(ctx, params)),
@@ -244,7 +244,7 @@ unsafe extern "C" fn parsec_provider_signature_digest_sign_init(
     }
 }
 
-unsafe extern "C" fn parsec_provider_signature_settable_params(
+unsafe extern "C" fn parsec_provider_signature_rsa_settable_params(
     _ctx: VOID_PTR,
     _provkey: VOID_PTR,
 ) -> *const OSSL_PARAM {
@@ -287,7 +287,7 @@ pub unsafe extern "C" fn parsec_provider_signature_ecdsa_set_params(
 /*
 Sets the context parameters for RSA signature
 */
-pub unsafe extern "C" fn parsec_provider_signature_set_params(
+pub unsafe extern "C" fn parsec_provider_signature_rsa_set_params(
     _keydata: VOID_PTR,
     params: *const OSSL_PARAM,
 ) -> std::os::raw::c_int {
@@ -359,12 +359,12 @@ pub type SignatureDigestSignInitPtr = unsafe extern "C" fn(
     *const OSSL_PARAM,
 ) -> std::os::raw::c_int;
 
-const OSSL_FUNC_SIGNATURE_SETTABLE_PARAMS_PTR: SignatureSettableParamsPtr =
-    parsec_provider_signature_settable_params;
+const OSSL_FUNC_SIGNATURE_RSA_SETTABLE_PARAMS_PTR: SignatureSettableParamsPtr =
+    parsec_provider_signature_rsa_settable_params;
 const OSSL_FUNC_SIGNATURE_ECDSA_SETTABLE_PARAMS_PTR: SignatureSettableParamsPtr =
     parsec_provider_signature_ecdsa_settable_params;
-const OSSL_FUNC_SIGNATURE_SET_PARAMS_PTR: SignatureSetParamsPtr =
-    parsec_provider_signature_set_params;
+const OSSL_FUNC_SIGNATURE_RSA_SET_PARAMS_PTR: SignatureSetParamsPtr =
+    parsec_provider_signature_rsa_set_params;
 const OSSL_FUNC_SIGNATURE_ECDSA_SET_PARAMS_PTR: SignatureSetParamsPtr =
     parsec_provider_signature_ecdsa_set_params;
 pub type SignatureSettableParamsPtr = unsafe extern "C" fn(VOID_PTR, VOID_PTR) -> *const OSSL_PARAM;
@@ -380,7 +380,7 @@ const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_PTR: SignatureDigestSignPtr =
 const OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT_PTR: SignatureDigestSignInitPtr =
     parsec_provider_signature_digest_sign_init;
 
-const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 7] = [
+const PARSEC_PROVIDER_RSA_SIGN_IMPL: [OSSL_DISPATCH; 7] = [
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_NEWCTX, OSSL_FUNC_SIGNATURE_NEWCTX_PTR) },
     unsafe { ossl_dispatch!(OSSL_FUNC_SIGNATURE_FREECTX, OSSL_FUNC_SIGNATURE_FREECTX_PTR) },
     unsafe {
@@ -398,13 +398,13 @@ const PARSEC_PROVIDER_SIGN_IMPL: [OSSL_DISPATCH; 7] = [
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_SIGNATURE_SETTABLE_CTX_PARAMS,
-            OSSL_FUNC_SIGNATURE_SETTABLE_PARAMS_PTR
+            OSSL_FUNC_SIGNATURE_RSA_SETTABLE_PARAMS_PTR
         )
     },
     unsafe {
         ossl_dispatch!(
             OSSL_FUNC_SIGNATURE_SET_CTX_PARAMS,
-            OSSL_FUNC_SIGNATURE_SET_PARAMS_PTR
+            OSSL_FUNC_SIGNATURE_RSA_SET_PARAMS_PTR
         )
     },
     ossl_dispatch!(),
@@ -450,7 +450,7 @@ pub const PARSEC_PROVIDER_SIGNATURE: [OSSL_ALGORITHM; 3] = [
     ossl_algorithm!(
         PARSEC_PROVIDER_RSA_NAME,
         PARSEC_PROVIDER_DFLT_PROPERTIES,
-        PARSEC_PROVIDER_SIGN_IMPL,
+        PARSEC_PROVIDER_RSA_SIGN_IMPL,
         PARSEC_PROVIDER_DESCRIPTION_RSA
     ),
     ossl_algorithm!(),
