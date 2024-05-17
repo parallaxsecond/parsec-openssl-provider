@@ -18,9 +18,9 @@ use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
-struct EccSignature {
-    r: IntegerAsn1,
-    s: IntegerAsn1,
+pub struct EccSignature {
+    pub r: IntegerAsn1,
+    pub s: IntegerAsn1,
 }
 
 struct ParsecProviderSignatureContext {

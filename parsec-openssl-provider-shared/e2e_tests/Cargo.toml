@@ -17,6 +17,7 @@ parsec-openssl-provider = { path ="../../parsec-openssl-provider" }
 parsec-client = "0.16.0"
 sha2 = "0.10.8"
 openssl = "0.10.63"
+picky-asn1-der = "0.4.0"
 
 [build-dependencies]
 pkg-config = "0.3.18"
