@@ -2,10 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use e2e_tests::*;
+use openssl::md::Md;
+use openssl::md_ctx::MdCtx;
+use openssl::pkey::Private;
 use parsec_client::core::basic_client::BasicClient;
 use parsec_client::core::interface::operations::psa_algorithm::{AsymmetricSignature, Hash};
+use parsec_client::core::interface::operations::{
+    psa_hash_compare, psa_hash_compute, psa_sign_hash,
+};
 use parsec_openssl_provider::parsec_openssl2::ossl_param;
 use parsec_openssl_provider::parsec_openssl2::{openssl_returns_1, Openssl2Error};
+use parsec_openssl_provider::signature::EccSignature;
 use parsec_openssl_provider::{
     PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_KEY_NAME,
     PARSEC_PROVIDER_RSA_NAME,
@@ -21,10 +28,6 @@ fn sign_verify(
     sign_algorithm: AsymmetricSignature,
     key_type: &[u8],
 ) -> Result<(), Openssl2Error> {
-    // These are a backup to be used with different modalities of EVP_PKEY_sign
-    let mut other_signature: Vec<u8> = vec![0; signature.len()];
-    let mut other_len = signature.len();
-
     let provider_path = String::from("../../target/debug/");
     let provider_name = String::from("libparsec_openssl_provider_shared");
 
@@ -33,10 +36,7 @@ fn sign_verify(
 
     let mut param = ossl_param!(PARSEC_PROVIDER_KEY_NAME, OSSL_PARAM_UTF8_PTR, key_name);
 
-    let mut hasher = Sha256::new();
-    hasher.update(b"Parsec OpenSSL Provider");
-    let hash = hasher.finalize();
-
+    let test_string: &[u8; 23] = b"Parsec OpenSSL Provider";
     unsafe {
         let mut parsec_pkey: *mut EVP_PKEY = std::ptr::null_mut();
         load_key(&lib_ctx, &mut param, &mut parsec_pkey, key_type);
@@ -47,55 +47,38 @@ fn sign_verify(
             PARSEC_PROVIDER_DFLT_PROPERTIES.as_ptr() as *const ::std::os::raw::c_char,
         );
 
-        let mut sign_len = 0;
+        let mut mdctx = MdCtx::new().unwrap();
+        let md = Md::fetch(None, "SHA256", None).unwrap();
+        let pkey: openssl::pkey::PKey<Private> = openssl::pkey::PKey::from_ptr(parsec_pkey as _);
+        mdctx.digest_sign_init(Some(&md), &pkey).unwrap();
 
-        // Initialize and perform signing operation using EVP interfaces
-        openssl_returns_1(EVP_PKEY_sign_init(evp_ctx)).unwrap();
-
-        openssl_returns_1(EVP_PKEY_sign(
-            evp_ctx,
-            std::ptr::null_mut(),
-            &mut sign_len,
-            hash.as_ptr(),
-            hash.len(),
-        ))
-        .unwrap();
-        assert_eq!(sign_len, signature.len());
-
-        openssl_returns_1(EVP_PKEY_sign(
-            evp_ctx,
-            signature.as_mut_ptr(),
-            &mut sign_len,
-            hash.as_ptr(),
-            hash.len(),
-        ))
-        .unwrap();
-
-        openssl_returns_1(EVP_PKEY_sign(
-            evp_ctx,
-            other_signature.as_mut_ptr(),
-            &mut other_len,
-            hash.as_ptr(),
-            hash.len(),
-        ))
-        .unwrap();
+        mdctx.digest_sign(test_string, Some(signature)).unwrap();
 
         EVP_PKEY_free(parsec_pkey);
     }
 
     let client = BasicClient::new(Some(String::from("parsec-tool"))).unwrap();
 
-    client
-        .psa_verify_hash(key_name, &hash, sign_algorithm, signature)
-        .unwrap();
-    client
-        .psa_verify_hash(
-            key_name,
-            &hash,
-            sign_algorithm,
-            other_signature.as_mut_slice(),
-        )
-        .unwrap();
+    let hash = client.psa_hash_compute(Hash::Sha256, test_string).unwrap();
+
+    if sign_algorithm.is_ecc_alg() {
+        let deserialized: EccSignature = picky_asn1_der::from_bytes(signature).unwrap();
+        let mut sign_res_a = deserialized.r.as_unsigned_bytes_be().to_vec();
+        let sign_res_b = deserialized.s.as_unsigned_bytes_be().to_vec();
+        sign_res_a.extend(sign_res_b);
+        client
+            .psa_verify_hash(
+                key_name,
+                hash.as_slice(),
+                sign_algorithm,
+                sign_res_a.as_slice(),
+            )
+            .unwrap();
+    } else {
+        client
+            .psa_verify_hash(key_name, hash.as_slice(), sign_algorithm, signature)
+            .unwrap();
+    }
     Ok(())
 }
 
@@ -105,7 +88,7 @@ fn test_signing_ecdsa() {
     let key_name = String::from("PARSEC_TEST_ECDSA_KEY");
 
     // A 256 bit ECDSA signing operation produces 64 bytes signature
-    let mut signature: [u8; 64] = [0; 64];
+    let mut signature: [u8; 128] = [0; 128];
     let sign_alg = AsymmetricSignature::Ecdsa {
         hash_alg: Hash::Sha256.into(),
     };

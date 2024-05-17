@@ -17,7 +17,7 @@ use parsec_openssl2::types::VOID_PTR;
 use parsec_openssl2::{openssl_bindings, types};
 
 mod keymgmt;
-mod signature;
+pub mod signature;
 
 mod provider;
 use provider::*;
