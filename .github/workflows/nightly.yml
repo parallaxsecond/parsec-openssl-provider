@@ -43,3 +43,10 @@ jobs:
         run: cargo install cargo-audit
       - name: Execute cargo audit
         run: cargo audit
+
+  cargo-deny:
+    name: "Run cargo deny"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: EmbarkStudios/cargo-deny-action@v1
