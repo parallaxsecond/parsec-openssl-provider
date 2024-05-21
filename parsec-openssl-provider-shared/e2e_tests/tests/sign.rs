@@ -17,7 +17,6 @@ use parsec_openssl_provider::{
     PARSEC_PROVIDER_DFLT_PROPERTIES, PARSEC_PROVIDER_ECDSA_NAME, PARSEC_PROVIDER_KEY_NAME,
     PARSEC_PROVIDER_RSA_NAME,
 };
-use sha2::{Digest, Sha256};
 
 // Signs a digest using Parsec Provider and verifies the signature using the
 // same key via the parsec-tool. The test only passes if the signature verification
