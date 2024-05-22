@@ -75,8 +75,8 @@ fn test_parsec_provider_get_param() {
     let lib_ctx: LibCtx = LibCtx::new().unwrap();
     let provider: Provider = load_provider(&lib_ctx, &provider_name, provider_path);
 
-    let mut prov_name: *mut i8 = std::ptr::null_mut();
-    let mut prov_version: *mut i8 = std::ptr::null_mut();
+    let mut prov_name: *mut std::os::raw::c_char = std::ptr::null_mut();
+    let mut prov_version: *mut std::os::raw::c_char = std::ptr::null_mut();
     let mut prov_status: i32 = 0;
     unsafe {
         let mut params: [OSSL_PARAM; 4] =
@@ -85,12 +85,12 @@ fn test_parsec_provider_get_param() {
         // Construct the 3 parameters
         params[0] = OSSL_PARAM_construct_utf8_ptr(
             openssl_bindings::OSSL_PROV_PARAM_NAME.as_ptr() as _,
-            &mut prov_name,
+            &mut prov_name as _,
             0,
         );
         params[1] = OSSL_PARAM_construct_utf8_ptr(
             openssl_bindings::OSSL_PROV_PARAM_VERSION.as_ptr() as _,
-            &mut prov_version,
+            &mut prov_version as _,
             0,
         );
         params[2] = OSSL_PARAM_construct_int(
@@ -116,11 +116,11 @@ fn test_parsec_provider_get_param() {
         openssl_returns_1(OSSL_PARAM_modified(&params[2] as _)).unwrap();
 
         // Verify the returned provider parameters
-        let prov_name = CStr::from_ptr(prov_name);
+        let prov_name = CStr::from_ptr(prov_name as _);
         let prov_name = prov_name.to_str().unwrap();
         assert_eq!(prov_name, "Parsec OpenSSL Provider");
 
-        let prov_version = CStr::from_ptr(prov_version);
+        let prov_version = CStr::from_ptr(prov_version as _);
         let prov_version = prov_version.to_str().unwrap();
         assert_eq!(prov_version, "0.1.0");
     }
