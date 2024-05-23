@@ -8,10 +8,15 @@ on:
         description: "'parsec-openssl-provider-test' if docker build should be triggered"
         required: false
         default: ""
+      trigger_test_cross_docker:
+        description: "'parsec-openssl-provider-cross-compile' if docker build should be triggered"
+        required: false
+        default: ""
   push:
 
 env:
   TEST_DOCKER_IMAGE: ${{ github.event.inputs.trigger_docker || 'ghcr.io/parallaxsecond/parsec-openssl-provider-test' }}
+  TEST_CROSS_DOCKER_IMAGE: ${{ github.event.inputs.trigger_test_cross_docker || 'ghcr.io/parallaxsecond/parsec-openssl-provider-cross-compile' }}
 
 jobs:
   build-and-export-test-docker:
@@ -29,6 +34,22 @@ jobs:
       with:
         name: parsec-openssl-provider-test
         path: /tmp/parsec-openssl-provider-test.tar
+
+  build-and-export-cross-compile-docker:
+    runs-on: ubuntu-latest
+    # For running this job  we need to manually trigger the CI and set the variable
+    if: ${{ github.event.inputs.trigger_test_cross_docker == 'parsec-openssl-provider-cross-compile' }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build the docker container
+      run: pushd tests/docker_image && docker build -t parsec-openssl-provider-cross-compile -f parsec-openssl-provider-cross-compile.Dockerfile . && popd
+    - name: Export the docker container
+      run: docker save parsec-openssl-provider-cross-compile > /tmp/parsec-openssl-provider-cross-compile.tar
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: parsec-openssl-provider-cross-compile
+        path: /tmp/parsec-openssl-provider-cross-compile.tar
 
   build-and-test:
     name: Build Parsec OpenSSL Provider and run tests 
@@ -65,3 +86,24 @@ jobs:
         uses: ./.github/actions/ci_script
         with:
           ci-flags: "static-checks"  
+
+  cross-compilation:
+    # Currently only the Mbed Crypto provider is tested
+    name: Cross-compile Parsec OpenSSL Provider to various targets
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [build-and-export-cross-compile-docker]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Load Docker
+        uses: ./.github/actions/load_docker
+        if: ${{ env.TEST_CROSS_DOCKER_IMAGE == 'parsec-openssl-provider-cross-compile' }}
+        with:
+          image-name: "${{ env.TEST_CROSS_DOCKER_IMAGE }}"
+          image-path: "/tmp"
+      - name: Run the cross compiler tests using pre-built docker image
+        if: ${{ env.TEST_CROSS_DOCKER_IMAGE != 'parsec-openssl-provider-cross-compile' }}
+        run: docker run -v $(pwd):/tmp/parsec-openssl-provider -w /tmp/parsec-openssl-provider ghcr.io/parallaxsecond/parsec-openssl-provider-cross-compile /tmp/parsec-openssl-provider/tests/cross-compile.sh
+      - name: Run the cross compiler tests using image built on the CI
+        if: ${{ env.TEST_CROSS_DOCKER_IMAGE == 'parsec-openssl-provider-cross-compile' }}
+        run: docker run -v $(pwd):/tmp/parsec-openssl-provider -w /tmp/parsec-openssl-provider "${{ env.TEST_CROSS_DOCKER_IMAGE }}" /tmp/parsec-openssl-provider/tests/cross-compile.sh
